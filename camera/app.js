@@ -1,13 +1,14 @@
 'use strict';
 const $=id=>document.getElementById(id),CHANNEL='swich-tab-helper-v1';
-let helper=false,selectedTab=null,worker=null,stream=null,workerReady=null,cameraOn=false,controlsOn=false,starting=false,session=0,cameraGeneration=0,requestSerial=0,fallbackTimer=null,fallbackBusy=false,transport='';
+let helper=false,selectedTab=null,worker=null,stream=null,workerReady=null,cameraOn=false,controlsOn=false,starting=false,manualBusy=false,session=0,cameraGeneration=0,requestSerial=0,fallbackTimer=null,fallbackBusy=false,transport='';
 const pending=new Map(),edges=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
 const canvas=$('landmarks'),context=canvas.getContext('2d');
 function status(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' error':'');}
 function updateControls(){
   $('refreshTabs').disabled=!helper;$('videoTab').disabled=!helper||starting;
   $('showVideo').disabled=!helper||selectedTab===null;
-  $('cameraButton').disabled=starting||!helper||selectedTab===null;
+  $('cameraButton').disabled=starting||manualBusy||!helper||selectedTab===null;
+  for(const id of ['backVideo','toggleVideo','forwardVideo'])$(id).disabled=starting||manualBusy||!helper||selectedTab===null;
   $('cameraButton').textContent=starting?'Starting camera…':!cameraOn?'Enable camera':controlsOn?'Pause controls':'Resume controls';
   $('stopCamera').hidden=!cameraOn&&!starting;
   $('trackingDot').classList.toggle('on',cameraOn&&controlsOn);
@@ -50,6 +51,7 @@ async function loadTabs(){
 async function chooseTab(id){
   if(id!==selectedTab){
     const old=selectedTab;setControls(false);selectedTab=id;
+    connection(false,id===null?'Choose a video to connect.':'Connecting to the selected video…');
     if(old!==null&&helper)rpc('media-command',{tabId:old,command:{action:'cancel'}}).catch(()=>{});
     if(cameraOn&&id!==null)status('Video changed. Click Resume controls when ready.');
   }
@@ -63,10 +65,32 @@ function displayState(state){
   $('videoVolume').textContent=state.muted?'Muted':'Volume '+Math.round(state.volume*100)+'%';
 }
 async function refreshState(){
-  if(!helper||selectedTab===null)return;
+  if(!helper||selectedTab===null)return false;
   const id=selectedTab;
-  try{const result=await rpc('media-command',{tabId:id,command:{action:'status'}});if(selectedTab===id)displayState(result.state);}
-  catch(error){if(selectedTab===id)status(error.message,true);}
+  try{
+    const result=await rpc('media-command',{tabId:id,command:{action:'status'}});
+    if(selectedTab!==id)return false;
+    if(!result.state)throw new Error('No video reply. Refresh the selected YouTube tab.');
+    displayState(result.state);connection(true);return true;
+  }catch(error){if(selectedTab===id){connection(false,error.message);if(controlsOn)setControls(false);status(error.message,true);}return false;}
+}
+function connection(ok,message){
+  $('videoConnection').textContent=ok?'Video connected':message||'YouTube is not connected. Refresh its tab and try again.';
+  $('videoConnection').className='connection'+(ok?' connected':'');
+  if(!ok){$('playbackState').textContent='Video not connected';$('videoTime').textContent='—';$('videoVolume').textContent='Volume —';}
+}
+async function manualCommand(command){
+  if(manualBusy||!helper||selectedTab===null)return;
+  const tabId=selectedTab,resume=controlsOn;
+  setControls(false);const currentSession=session;manualBusy=true;updateControls();
+  try{
+    const result=await rpc('media-command',{tabId,command});
+    if(currentSession!==session||selectedTab!==tabId)return;
+    displayState(result.state);connection(true);
+    status(command.action==='toggle'?(result.state?.paused?'YouTube paused.':'YouTube playing.'):(command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.'));
+    if(resume)setControls(true);
+  }catch(error){if(currentSession===session){connection(false,error.message);status(error.message,true);}}
+  finally{manualBusy=false;updateControls();}
 }
 function setControls(on){
   const old=controlsOn;controlsOn=Boolean(on&&cameraOn&&helper&&selectedTab!==null);session++;
@@ -89,25 +113,28 @@ async function dispatchCommand(data){
   try{
     const result=await rpc('media-command',{tabId,command:data.command});
     if(currentSession!==session)return;
-    displayState(result.state);
-    const labels={toggle:'Playback changed.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',seekEnd:'Timeline released.',volumeEnd:'Volume set.',zoomEnd:'Page zoom set.'};
+    displayState(result.state);connection(true);
+    const labels={toggle:result.state?.paused?'YouTube paused.':'YouTube playing.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',seekEnd:'Timeline released.',volumeEnd:'Volume set.',zoomEnd:'Page zoom set.'};
     if(labels[data.command.action])status(labels[data.command.action]);
   }catch(error){if(currentSession===session){setControls(false);status(error.message+' Click Resume controls to try again.',true);}}
 }
 async function startCamera(){
   if(starting)return;
-  if(cameraOn){setControls(!controlsOn);status(controlsOn?'Controls active. Show a relaxed hand first.':'Controls paused. Your camera preview stays on.');return;}
+  if(cameraOn&&controlsOn){setControls(false);status('Controls paused. Your camera preview stays on.');return;}
   if(!navigator.mediaDevices?.getUserMedia){status('Camera access needs Chrome and the live HTTPS website.',true);return;}
-  starting=true;updateControls();status('Allow camera access when Chrome asks…');
+  starting=true;updateControls();status('Checking the selected YouTube video…');
   const startSession=++session,generation=++cameraGeneration;
   let acquired=null;
   try{
+    if(!await refreshState()||generation!==cameraGeneration)return;
+    if(cameraOn){setControls(true);status('Controls active. Show a relaxed hand first.');return;}
+    status('Allow camera access when Chrome asks…');
     acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user',width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}});
     if(generation!==cameraGeneration){acquired.getTracks().forEach(t=>t.stop());return;}
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
     status('Loading hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js');
+    worker=new Worker('camera/tracker-worker.js?v=2');
     const initialized=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
@@ -162,6 +189,9 @@ function stopCamera(){
 }
 $('cameraButton').addEventListener('click',startCamera);$('stopCamera').addEventListener('click',stopCamera);
 $('refreshTabs').addEventListener('click',loadTabs);
+$('toggleVideo').addEventListener('click',()=>manualCommand({action:'toggle'}));
+$('backVideo').addEventListener('click',()=>manualCommand({action:'seek',seconds:-10}));
+$('forwardVideo').addEventListener('click',()=>manualCommand({action:'seek',seconds:10}));
 $('videoTab').addEventListener('change',()=>chooseTab($('videoTab').value===''?null:Number($('videoTab').value)));
 $('showVideo').addEventListener('click',async()=>{try{await rpc('media-command',{tabId:selectedTab,command:{action:'focus'}});}catch(error){status(error.message,true);}});
 document.addEventListener('visibilitychange',()=>{

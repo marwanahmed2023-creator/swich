@@ -2,6 +2,7 @@
   'use strict';
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+  const PINCH=.35,RELEASE=.52,STALE_FRAME=1500;
   function describe(points,label=''){
     if(!Array.isArray(points)||points.length!==21||points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return null;
     const width=distance(points[5],points[17]);
@@ -23,7 +24,7 @@
     start(type,h,now,span){this.mode={type,id:'g'+(++this.serial),at:now,x:h.x,y:h.y,label:h.label,span,frames:1,moved:0,started:false,lastSent:0};}
     send(action,now,extra={}){this.mode.lastSent=now;this.emit({action,gestureId:this.mode.id,...extra});}
     update(hands,now){
-      if(this.lastTime!==null&&(now-this.lastTime>500||now<=this.lastTime)){this.cancel();this.cooldown=now+400;this.warmUntil=now+400;}
+      if(this.lastTime!==null&&(now-this.lastTime>STALE_FRAME||now<=this.lastTime)){this.cancel();this.cooldown=now+400;this.warmUntil=now+400;}
       this.lastTime=now;
       if(!hands.length){this.cancel();this.message='Show your hand to control the video';return this.message;}
       if(now<this.warmUntil||now<this.cooldown){this.message='Ready for your next gesture';return this.message;}
@@ -43,19 +44,23 @@
       if(this.mode?.label&&h.label&&this.mode.label!==h.label){this.cancel();this.cooldown=now+350;return this.message='Hand changed · release and try again';}
       const m=this.mode;
       if(m?.type==='index'){
-        m.frames++;m.moved=Math.max(m.moved,Math.hypot(h.x-m.x,h.y-m.y));
-        if(h.index>.43){
+        m.frames++;
+        if(h.index>RELEASE){
           if(m.started)this.send('seekEnd',now,{commit:true});
-          else if(now-m.at>=90&&now-m.at<=500&&m.frames>=3&&m.moved<.045)this.emit({action:'toggle'});
+          else if(now-m.at>=90&&now-m.at<=1400&&m.frames>=3&&m.moved<.075)this.emit({action:'toggle'});
           this.mode=null;this.cooldown=now+450;return this.message=m.started?'Timeline set':'Ready';
         }
+        // Opening the fingers moves their midpoint. Only measure drag motion
+        // while they are still pinched, so a normal release can toggle playback.
+        if(h.index>PINCH)return this.message='Release your pinch to finish';
+        m.moved=Math.max(m.moved,Math.hypot(h.x-m.x,h.y-m.y));
         if(!m.started&&now-m.at>=300&&Math.abs(h.x-m.x)>.045&&m.frames>=3){m.started=true;this.send('seekStart',now);}
         if(m.started&&now-m.lastSent>=100)this.send('seekMove',now,{delta:clamp(h.x-m.x,-1,1)});
         return this.message=m.started?'Drag sideways · release to seek':'Quick release: play/pause · hold and move: timeline';
       }
       if(m?.type==='volume'){
         m.frames++;
-        if(h.middle>.43){if(m.started)this.send('volumeEnd',now,{commit:true});this.mode=null;this.cooldown=now+300;return this.message='Volume set';}
+        if(h.middle>RELEASE){if(m.started)this.send('volumeEnd',now,{commit:true});this.mode=null;this.cooldown=now+300;return this.message='Volume set';}
         if(!m.started&&now-m.at>=180&&m.frames>=3){m.started=true;this.send('volumeStart',now);}
         if(m.started&&now-m.lastSent>=100)this.send('volumeMove',now,{delta:clamp((m.y-h.my)*1.8,-1,1)});
         return this.message='Middle-finger pinch · move up or down for volume';
@@ -70,8 +75,8 @@
         if(!m.done&&now-m.at>900){m.at=now;m.x=h.vx;m.y=h.vy;m.frames=1;}
         return this.message=m.done?'Lower your fingers before the next swipe':'Two fingers up · swipe left or right';
       }
-      if(h.middle<.27&&h.middle<h.index*.8){this.start('volume',h,now);this.mode.y=h.my;return this.message='Volume gesture';}
-      if(h.index<.27){this.start('index',h,now);return this.message='Pinch detected';}
+      if(h.middle<PINCH&&h.middle<h.index*.8){this.start('volume',h,now);this.mode.y=h.my;return this.message='Volume gesture';}
+      if(h.index<PINCH){this.start('index',h,now);return this.message='Pinch detected';}
       if(h.victory){this.start('swipe',h,now);this.mode.x=h.vx;this.mode.y=h.vy;return this.message='Swipe left or right';}
       return this.message='Ready · pinch, swipe, or use two hands';
     }

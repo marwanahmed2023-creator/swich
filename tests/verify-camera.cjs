@@ -13,7 +13,14 @@ function testGestures(){
  t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[450,{index:.1,x:.7}],[550,{x:.7}]]);
  assert.deepEqual(actions(t),['seekStart','seekMove','seekEnd']);assert.equal(t.events[2].commit,true);assert.ok(Math.abs(t.events[1].delta-.2)<1e-9);
  t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[400,null]]);assert.deepEqual(actions(t),['seekStart','seekEnd']);assert.equal(t.events[1].commit,false);
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[900,{index:.1,x:.7}]]);assert.equal(t.events.at(-1).commit,false,'Frame stalls cancel drag');
+ t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[1900,{index:.1,x:.7}]]);assert.equal(t.events.at(-1).commit,false,'Frame stalls cancel drag');
+ for(const frames of [
+  [[0,{index:.1}],[300,{index:.1}],[600,{}]],
+  [[0,{index:.1}],[100,{index:.1}],[200,{x:.57}]],
+  [[0,{index:.1}],[600,{index:.1}],[1200,{}]],
+  [[0,{index:.3}],[250,{index:.3}],[400,{index:.45,x:.57}],[600,{index:.8,x:.6}]]
+ ]){t=engine();feed(t,frames);assert.deepEqual(actions(t),['toggle'],'Slower pinches and finger-opening movement still toggle once');}
+ t=engine();feed(t,[[0,{index:.1}],[100,{index:.1,y:.6}],[200,{y:.6}]]);assert.deepEqual(actions(t),[],'Moving the closed pinch is not a click');
  t=engine();feed(t,[[0,{index:.1}],[100,{index:.1,label:'Left'}],[200,{}]]);assert.deepEqual(actions(t),[],'Changing tracked hands never clicks');
  t=engine();feed(t,[[0,{middle:.1}],[100,{middle:.1}],[200,{middle:.1}],[310,{middle:.1,my:.3}],[420,{}]]);assert.deepEqual(actions(t),['volumeStart','volumeMove','volumeEnd']);assert.ok(Math.abs(t.events[1].delta-.36)<1e-9);
  for(const direction of [-1,1]){
@@ -94,4 +101,61 @@ function staticChecks(){
  for(const script of manifest.content_scripts.flatMap(s=>s.js))assert.ok(fs.existsSync(path.join(root,'tab-helper',script)));
  console.log('PASS: camera HTML controls, local asset links and extension package references.');
 }
-(async()=>{testGestures();await testMedia();await testBackgroundAndBridge();staticChecks();})().catch(error=>{console.error(error);process.exitCode=1;});
+async function testCameraPage(){
+ const html=read('camera.html'),origin='https://marwanahmed2023-creator.github.io';
+ const flush=()=>new Promise(setImmediate);
+ class Node extends EventTarget{
+  constructor(){super();Object.assign(this,{style:{},children:[],classList:{toggle(){}},textContent:'',value:'',disabled:false,hidden:false});}
+  appendChild(e){this.children.push(e);return e;}replaceChildren(){this.children=[];}
+  getContext(){return new Proxy({},{get:()=>()=>{},set:()=>true});}
+ }
+ const nodes=Object.fromEntries([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Node()]));nodes.cameraVideo.play=async()=>{};
+ const document=Object.assign(new EventTarget(),{hidden:false,getElementById:id=>nodes[id],createElement:()=>new Node()});
+ const win=new EventTarget();win.top=win;
+ win.postMessage=data=>queueMicrotask(()=>{const e=new Event('message');Object.assign(e,{data,source:win,origin});win.dispatchEvent(e);});
+ let reachable=true,cameraRequests=0,paused=false,videoTime=100,worker,listener,clock=0;
+ const commands=[],sender={id:'test',frameId:0,url:origin+'/swich/camera.html',tab:{id:7,incognito:false}};
+ const chrome={runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{
+  async query(){return [{id:2,url:'https://www.youtube.com/watch?v=chosen',title:'Selected video',incognito:false}];},
+  async get(id){return {id,url:'https://www.youtube.com/watch?v=chosen',incognito:false};},
+  async sendMessage(id,msg){
+   if(!reachable)throw Error('Receiving end does not exist');commands.push({id,...msg});
+   if(msg.action==='toggle')paused=!paused;if(msg.action==='seek')videoTime+=msg.seconds;
+   return {ok:true,state:{paused,time:videoTime,duration:600,volume:.5,muted:false}};
+  }
+ }};
+ vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome});
+ vm.runInNewContext(read('tab-helper/bridge.js'),{window:win,location:{origin,pathname:'/swich/camera.html'},chrome:{runtime:{sendMessage(req,reply){listener(req,sender,reply);}}}});
+ class Worker{
+  constructor(){worker=this;this.enabled=false;this.engine=new GestureEngine(command=>{if(this.enabled)this.onmessage?.({data:{type:'command',command,session:this.session}});});}
+  postMessage(msg){
+   if(msg.type==='init')queueMicrotask(()=>this.onmessage({data:{type:'ready',trackProcessor:false}}));
+   if(msg.type==='enabled'){this.engine.reset(clock);this.enabled=msg.enabled;this.session=msg.session;}
+  }
+  feed(t,features){clock=t;if(this.enabled)this.engine.update([hand(features)],t);}
+  terminate(){}
+ }
+ const track=Object.assign(new EventTarget(),{stop(){}}),stream={getTracks:()=>[track],getVideoTracks:()=>[track]};
+ const ctx=vm.createContext({window:win,document,location:{origin},console,URL,Worker,Date,
+  navigator:{mediaDevices:{async getUserMedia(){cameraRequests++;return stream;}}},
+  MediaStreamTrackProcessor:class{constructor(){this.readable={};}},setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){}});
+ vm.runInContext(read('camera/app.js'),ctx);await flush();
+ assert.equal(nodes.videoConnection.textContent,'Video connected');
+ await vm.runInContext("manualCommand({action:'toggle'})",ctx);assert.equal(paused,true);assert.equal(nodes.status.textContent,'YouTube paused.');
+ await vm.runInContext("manualCommand({action:'seek',seconds:10})",ctx);assert.equal(videoTime,110);
+ reachable=false;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,0,'Cannot start tracking when YouTube is unreachable');assert.match(nodes.videoConnection.textContent,/Refresh your YouTube/);
+ reachable=true;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,1);assert.equal(worker.enabled,true);
+ assert.equal(nodes.cameraButton.textContent,'Pause controls');
+ worker.feed(600,{index:.1});worker.feed(1200,{index:.1});worker.feed(1800,{});await flush();
+ assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='toggle').length,2);
+ assert.equal(nodes.status.textContent,'YouTube playing.');
+ // A stale worker message must not execute after pause or on another target.
+ const previousSession=worker.session;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,false);
+ worker.onmessage({data:{type:'command',session:previousSession,command:{action:'toggle'}}});await flush();assert.equal(paused,false);
+ reachable=false;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,false,'Resume checks connection too');
+ reachable=true;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,true);
+ await vm.runInContext("manualCommand({action:'toggle'})",ctx);assert.equal(paused,true);assert.equal(worker.enabled,true,'Manual controls reset then resume gestures');
+ vm.runInContext('stopCamera()',ctx);
+ console.log('PASS: actual camera page + bridge + background with simulated browser/worker: manual playback, visible connection failure, start/resume preflight, slow-frame gesture delivery and stale-session rejection.');
+}
+(async()=>{testGestures();await testMedia();await testBackgroundAndBridge();await testCameraPage();staticChecks();})().catch(error=>{console.error(error);process.exitCode=1;});
