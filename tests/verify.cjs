@@ -105,7 +105,7 @@ function emit(text){const bytes=new TextEncoder().encode(text);characteristic.va
    tabs:{async create(options){created.push({...options});return {id:created.length,windowId:options.windowId};}},
    windows:{async getLastFocused(){return {id:99,state:'minimized',incognito:false};},async get(id){return {id,state:'normal',incognito:false};},async update(id,options){windowChanges.push({id,...options});if(failFocus&&options.focused)throw new Error('Focus rejected');return {id};}}
  };
- vm.runInNewContext(fs.readFileSync('tab-helper/background.js','utf8'),{URL,chrome:extensionChrome});
+ vm.runInNewContext(fs.readFileSync('tab-helper/background.js','utf8'),{URL,chrome:extensionChrome,setTimeout,clearTimeout});
  const origin=ctx.window.location.origin;
  ctx.window.top=ctx.window;
  ctx.window.postMessage=(data,targetOrigin)=>{
@@ -113,7 +113,7 @@ function emit(text){const bytes=new TextEncoder().encode(text);characteristic.va
    queueMicrotask(()=>{const event=new Event('message');Object.assign(event,{source:ctx.window,origin,data});ctx.window.dispatchEvent(event);});
  };
  vm.runInNewContext(fs.readFileSync('tab-helper/bridge.js','utf8'),{
-   window:ctx.window,location:{origin,pathname:'/swich/'},
+   setTimeout,clearTimeout,window:ctx.window,location:{origin,pathname:'/swich/'},
    chrome:{runtime:{sendMessage(request,reply){workerListener(request,sender,reply);}}}
  });
  const flush=()=>new Promise(resolve=>setImmediate(resolve));

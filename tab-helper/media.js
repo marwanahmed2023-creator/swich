@@ -34,13 +34,21 @@
     clearTimeout(hideTimer);hideTimer=setTimeout(()=>hud.style.display='none',1800);
   }
   function state(v){return {paused:v.paused,time:v.currentTime,duration:Number.isFinite(v.duration)?v.duration:null,volume:v.volume,muted:v.muted};}
-  async function play(v){try{await v.play();}catch{throw new Error('Click Play in the YouTube tab once, then try the gesture again.');}}
-  async function end(commit){
+  function fresh(request){if(Number.isFinite(request.expiresAt)&&Date.now()>=request.expiresAt)throw new Error('That request expired. Relax your hand and try again.');}
+  async function play(v,expiresAt=Date.now()+1800){
+    let timer;
+    try{
+      fresh({expiresAt});
+      await Promise.race([v.play(),new Promise((_,reject)=>{timer=setTimeout(()=>{v.pause();reject(new Error('Playback timed out.'));},Math.max(1,Math.min(1800,expiresAt-Date.now())));})]);
+    }catch{throw new Error('Click Play in the YouTube tab once, then try the gesture again.');}
+    finally{clearTimeout(timer);}
+  }
+  async function end(commit,expiresAt){
     const t=transaction;transaction=null;if(!t)return;
     let current=null;try{current=video();}catch{}
     if(t.kind==='seek'&&t.video===current&&t.video.isConnected&&t.video.currentSrc===t.src){
       if(commit)t.video.currentTime=t.target;
-      if(t.wasPlaying)await play(t.video);
+      if(t.wasPlaying)await play(t.video,expiresAt);
       feedback(commit?'Seek to '+time(t.target):'Timeline released');
     }
   }
@@ -51,40 +59,45 @@
     t.deadline=Date.now()+2500;return t;
   }
   async function command(request){
+    fresh(request);
     const action=request.action;
-    if(action==='cancel'){await end(false);return {ok:true};}
+    if(action==='cancel'){await end(false,request.expiresAt);return {ok:true};}
     const v=video();
     if(action==='status')return {ok:true,state:state(v)};
-    if(action==='toggle'){
-      await end(false);
-      if(v.paused){await play(v);feedback('Playing');}else{v.pause();feedback('Paused');}
+    if(['toggle','play','pause'].includes(action)){
+      // An explicit pause also cancels a timeline transaction without resuming it.
+      if(action==='pause'&&transaction?.kind==='seek')transaction.wasPlaying=false;
+      await end(false,request.expiresAt);fresh(request);
+      const shouldPlay=action==='play'||(action==='toggle'&&v.paused);
+      if(shouldPlay){if(v.paused)await play(v,request.expiresAt);feedback('Playing');}else{v.pause();feedback('Paused');}
     }else if(action==='seek'){
-      await end(false);const [low,high]=bounds(v);v.currentTime=clamp(v.currentTime+request.seconds,low,high);
+      await end(false,request.expiresAt);fresh(request);const [low,high]=bounds(v);v.currentTime=clamp(v.currentTime+request.seconds,low,high);
       feedback((request.seconds>0?'Forward':'Back')+' 10 seconds');
     }else if(action==='seekStart'){
-      await end(false);const [low,high]=bounds(v);
+      await end(false,request.expiresAt);fresh(request);const [low,high]=bounds(v);
       transaction={kind:'seek',key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.currentTime,target:v.currentTime,low,high,wasPlaying:!v.paused,deadline:Date.now()+2500};
       v.pause();feedback('Drag timeline · '+time(v.currentTime),(v.currentTime-low)/(high-low));
     }else if(action==='seekMove'){
       const t=active(request,'seek');t.target=clamp(t.base+request.delta*(t.high-t.low),t.low,t.high);
       feedback('Seek to '+time(t.target),(t.target-t.low)/(t.high-t.low));
     }else if(action==='seekEnd'){
-      active(request,'seek');await end(request.commit===true);
+      active(request,'seek');await end(request.commit===true,request.expiresAt);
     }else if(action==='volumeStart'){
-      await end(false);transaction={kind:'volume',key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.muted?0:v.volume,deadline:Date.now()+2500};
+      await end(false,request.expiresAt);fresh(request);transaction={kind:'volume',key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.muted?0:v.volume,deadline:Date.now()+2500};
       feedback('Volume '+Math.round(transaction.base*100)+'%',transaction.base);
     }else if(action==='volumeMove'){
       const t=active(request,'volume');v.volume=clamp(t.base+request.delta,0,1);v.muted=false;
       feedback('Volume '+Math.round(v.volume*100)+'%',v.volume);
     }else if(action==='volumeEnd'){
       active(request,'volume');transaction=null;
-    }else if(action==='feedback')feedback(request.text);
-    else throw new Error('Unknown media command.');
+    }else throw new Error('Unknown media command.');
     return {ok:true,state:state(v)};
   }
   let queue=Promise.resolve();
   chrome.runtime.onMessage.addListener((request,sender,reply)=>{
     if(sender.id!==chrome.runtime.id||request?.type!=='SWICH_VIDEO_COMMAND')return false;
+    request={...request,expiresAt:Number.isFinite(request.expiresAt)?request.expiresAt:Date.now()+3500};
+    if(request.action==='status'){command(request).then(reply).catch(error=>reply({ok:false,error:error.message}));return true;}
     queue=queue.then(()=>command(request)).then(reply).catch(error=>reply({ok:false,error:error.message}));
     return true;
   });

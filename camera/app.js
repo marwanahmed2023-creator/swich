@@ -2,6 +2,7 @@
 const $=id=>document.getElementById(id),CHANNEL='swich-tab-helper-v1';
 let helper=false,selectedTab=null,worker=null,stream=null,workerReady=null,cameraOn=false,controlsOn=false,starting=false,manualBusy=false,session=0,cameraGeneration=0,requestSerial=0,fallbackTimer=null,fallbackBusy=false,transport='';
 const pending=new Map(),edges=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+let gestureQueue=[],gestureSending=false;
 const canvas=$('landmarks'),context=canvas.getContext('2d');
 function status(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' error':'');}
 function updateControls(){
@@ -18,7 +19,7 @@ function rpc(type,extra={}){
   if(!helper)return Promise.reject(new Error('Update the Swich helper and refresh this page first.'));
   const id=Date.now().toString(36)+'-'+(++requestSerial);
   return new Promise((resolve,reject)=>{
-    const timeout=setTimeout(()=>{pending.delete(id);reject(new Error('The helper did not reply. Refresh this page after reloading the extension.'));},8000);
+    const timeout=setTimeout(()=>{pending.delete(id);reject(new Error('The extension connection timed out. Reload Swich Tab Helper in chrome://extensions, then refresh both tabs.'));},8000);
     pending.set(id,{resolve,reject,timeout});window.postMessage({channel:CHANNEL,from:'page',type,id,...extra},location.origin);
   });
 }
@@ -26,10 +27,10 @@ window.addEventListener('message',event=>{
   if(event.source!==window||event.origin!==location.origin)return;
   const data=event.data;if(data?.channel!==CHANNEL||data.from!=='extension')return;
   if(data.type==='ready'){
-    const ready=data.available===true&&data.capabilities?.includes('camera-media'),becameReady=!helper&&ready;
+    const ready=data.available===true&&['camera-media','direct-playback','bounded-requests'].every(c=>data.capabilities?.includes(c)),becameReady=!helper&&ready;
     helper=Boolean(ready);$('setupNotice').hidden=helper;
     $('extensionBadge').textContent=helper?'Helper connected · v'+data.version:'Helper update needed';$('extensionBadge').className='badge'+(helper?' ready':'');
-    if(!helper){setControls(false);status('Install or update the helper to use camera controls.');}
+    if(!helper){setControls(false);status('Update Swich Tab Helper to version 1.2 for separate play/pause and the connection fix.');}
     else if(becameReady){status('Open a YouTube video, then choose it below.');loadTabs();}
     updateControls();return;
   }
@@ -93,6 +94,7 @@ async function manualCommand(command){
   finally{manualBusy=false;updateControls();}
 }
 function setControls(on){
+  gestureQueue=[];
   const old=controlsOn;controlsOn=Boolean(on&&cameraOn&&helper&&selectedTab!==null);session++;
   worker?.postMessage({type:'enabled',enabled:controlsOn,session});
   if(old&&!controlsOn&&selectedTab!==null&&helper)rpc('media-command',{tabId:selectedTab,command:{action:'cancel'}}).catch(()=>{});
@@ -109,12 +111,21 @@ function draw(landmarks){
 }
 async function dispatchCommand(data){
   if(!controlsOn||data.session!==session||selectedTab===null)return;
+  const last=gestureQueue.at(-1);
+  if(data.command.action.endsWith('Move')&&last?.session===data.session&&last.command.action===data.command.action&&last.command.gestureId===data.command.gestureId)gestureQueue[gestureQueue.length-1]=data;
+  else gestureQueue.push(data);
+  if(gestureSending)return;
+  gestureSending=true;
+  try{while(gestureQueue.length)await sendGesture(gestureQueue.shift());}finally{gestureSending=false;}
+}
+async function sendGesture(data){
+  if(!controlsOn||data.session!==session||selectedTab===null)return;
   const tabId=selectedTab,currentSession=session;
   try{
     const result=await rpc('media-command',{tabId,command:data.command});
     if(currentSession!==session)return;
     displayState(result.state);connection(true);
-    const labels={toggle:result.state?.paused?'YouTube paused.':'YouTube playing.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',seekEnd:'Timeline released.',volumeEnd:'Volume set.',zoomEnd:'Page zoom set.'};
+    const labels={play:'YouTube playing.',pause:'YouTube paused.',toggle:result.state?.paused?'YouTube paused.':'YouTube playing.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',seekEnd:'Timeline released.',volumeEnd:'Volume set.'};
     if(labels[data.command.action])status(labels[data.command.action]);
   }catch(error){if(currentSession===session){setControls(false);status(error.message+' Click Resume controls to try again.',true);}}
 }
@@ -134,7 +145,7 @@ async function startCamera(){
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
     status('Loading hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js?v=3');
+    worker=new Worker('camera/tracker-worker.js?v=4');
     const initialized=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
@@ -163,7 +174,7 @@ async function startCamera(){
       const copy=track.clone();try{worker.postMessage({type:'track',track:copy},[copy]);transport='track';}catch{copy.stop();startFallback();}
     }else startFallback();
     starting=false;cameraOn=true;$('cameraPlaceholder').hidden=true;$('liveBadge').hidden=false;
-    setControls(true);status('Controls active. Show one or two fingers, pause briefly, then make a small movement. Thumbs-up plays or pauses.');
+    setControls(true);status('Controls active. Thumbs-up plays; thumbs-down pauses. Use one finger for skips/volume and two fingers for the timeline.');
   }catch(error){
     if(generation!==cameraGeneration)return;
     stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your Chromebook camera.':'Could not start the camera: '+error.message,true);
@@ -200,4 +211,4 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',stopCamera);
 setInterval(()=>{if(cameraOn&&!document.hidden)refreshState();},4000);
-ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update the Swich helper to version 1.1, then refresh this page.');}},2000);
+ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update the Swich helper to version 1.2, then refresh this page and YouTube.');}},2000);

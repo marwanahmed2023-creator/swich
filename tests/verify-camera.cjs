@@ -13,11 +13,11 @@ function landmarks(raised=[],thumb=false){
  p[1]={x:.38,y:.82};p[2]={x:.34,y:.75};p[3]={x:.30,y:thumb?.56:.70};p[4]={x:.28,y:thumb?.40:.75};return p;
 }
 function testGestures(){
- let t=engine();feed(t,[[0,{pose:'like'}],[300,{pose:'like'}],[650,{pose:'like'}],[1000,{pose:'like'}],[1500,{pose:'like'}]]);assert.deepEqual(actions(t),['toggle'],'Held thumbs-up acts once');
- feed(t,[[1600,{}],[1900,{}],[2000,{pose:'like'}],[2650,{pose:'like'}]]);assert.deepEqual(actions(t),['toggle','toggle'],'Relaxing rearms play/pause');
+ let t=engine();feed(t,[[0,{pose:'like'}],[300,{pose:'like'}],[650,{pose:'like'}],[1000,{pose:'like'}],[1500,{pose:'like'}]]);assert.deepEqual(actions(t),['play'],'Held thumbs-up acts once');
+ feed(t,[[1600,{}],[1900,{}],[2000,{pose:'like'}],[2650,{pose:'like'}]]);assert.deepEqual(actions(t),['play','play'],'Relaxing rearms playback');
  t=engine();feed(t,[[0,{pose:'like'}],[100,{pose:'like'}],[200,null]]);assert.deepEqual(actions(t),[],'Brief thumbs-up or lost hand never toggles');
  t=engine();feed(t,[[0,{pose:'like'}],[400,{}],[650,{pose:'like'}]]);assert.deepEqual(actions(t),[],'Separate brief thumbs-up poses do not combine into a hold');
- t=engine();feed(t,[[0,{pose:'like'}],[600,{pose:'like'}]]);assert.deepEqual(actions(t),['toggle'],'Slow camera frames still recognize thumbs-up');
+ t=engine();feed(t,[[0,{pose:'like'}],[600,{pose:'like'}]]);assert.deepEqual(actions(t),['play'],'Slow camera frames still recognize thumbs-up');
  for(const direction of [-1,1]){
   t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.5+direction*.065}],[600,{pose:'one',x:.5+direction*.15}],[900,{pose:'one',x:.5+direction*.2}]]);
   assert.deepEqual(actions(t),['seek']);assert.equal(t.events[0].seconds,direction*10,'Small one-finger motion seeks in mirrored direction once');
@@ -34,19 +34,20 @@ function testGestures(){
  feed(t,[[2300,{pose:'two',x:.565}]]);assert.equal(t.events.at(-1).commit,false,'A stale stream cancels a drag');
  for(const direction of [-1,1]){
   t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',y:.5+direction*.065}],[600,{}],[800,{}]]);
-  assert.deepEqual(actions(t),['zoomStart','zoomMove','zoomEnd']);assert.ok(direction<0?t.events[1].scale>1:t.events[1].scale<1,'Two-finger vertical motion controls zoom');
+  assert.deepEqual(actions(t),[],'Two-finger vertical motion no longer sends commands');
  }
  t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.565}],[600,{pose:'two',label:'Left'}]]);assert.equal(t.events.at(-1).commit,false,'Switching tracked hands cancels');
  t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.565}],[600,[hand({pose:'two'}),hand({pose:'two',label:'Left'})]]]);assert.equal(t.events.at(-1).commit,false,'A second hand cancels instead of selecting another action');
  t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',y:.435}],[1400,{pose:'one',y:.435}]]);assert.equal(t.events.at(-1).action,'volumeMove','Stationary continuous gestures refresh their video transaction');
  t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.565}],[500,null],[600,{pose:'one'}],[800,{pose:'one',x:.6}]]);assert.deepEqual(actions(t),['seek'],'One missing frame cannot rearm a held action');
+ t=engine();feed(t,[[0,{pose:'dislike'}],[650,{pose:'dislike'}],[1000,{pose:'dislike'}]]);assert.deepEqual(actions(t),['pause'],'Thumbs-down pauses once without toggling');
  assert.equal(describe([]),null);assert.equal(describe(Array.from({length:21},()=>({x:NaN,y:0}))),null);
  for(const [raised,thumb,pose] of [[[],false,'rest'],[[],true,'like'],[[0],false,'one'],[[0,1],false,'two'],[[0,1,2,3],false,'rest'],[[1],false,'rest']]){
   const points=landmarks(raised,thumb);assert.equal(describe(points).pose,pose,'Landmark classifier: '+pose);
   assert.equal(describe(points.map(p=>({x:1-p.x,y:p.y})),'Left').pose,pose,'Both hands classify the same');
  }
  const points=landmarks([0]);points[8].x+=.04;const feature=describe(points);assert.equal(feature.pose,'one');assert.ok(Math.abs(feature.x-.56)<1e-9,'Position follows index fingertip, not palm');
- assert.equal(describe(landmarks([],true).map(p=>({x:p.x,y:1-p.y}))).pose,'rest','Thumbs-down does not play/pause');
+ assert.equal(describe(landmarks([],true).map(p=>({x:p.x,y:1-p.y}))).pose,'dislike','Thumbs-down is recognized separately');
  console.log('PASS: actual landmark finger counts, mirrored fingertips, thumbs-up debounce, small one/two-finger motions, axis lock, jitter rejection, drag commit/cancel, rest rearming and slow frames.');
 }
 
@@ -64,6 +65,7 @@ async function testMedia(){
   chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}}},Date:{now:()=>clock},setTimeout:()=>1,clearTimeout(){},setInterval(fn){watchdog=fn;}};
  vm.runInNewContext(read('tab-helper/media.js'),ctx);
  const send=(action,extra={})=>new Promise(resolve=>listener({type:'SWICH_VIDEO_COMMAND',controllerId:7,gestureId:'drag',action,...extra},{id:'test'},resolve));
+ await send('pause');await send('pause');assert.equal(v.paused,true,'Repeated pause never plays');await send('play');await send('play');assert.equal(v.paused,false,'Repeated play never pauses');
  assert.equal((await send('toggle')).ok,true);assert.equal(v.paused,true);await send('toggle');assert.equal(v.paused,false);
  v.currentTime=595;await send('seek',{seconds:10});assert.equal(v.currentTime,600);v.currentTime=5;await send('seek',{seconds:-10});assert.equal(v.currentTime,0);
  v.currentTime=100;await send('seekStart');assert.equal(v.paused,true);await send('seekMove',{delta:.25});assert.equal(v.currentTime,100,'Drag is previewed until release');await send('seekEnd',{commit:true});assert.equal(v.currentTime,250);assert.equal(v.paused,false);
@@ -80,30 +82,30 @@ async function testMedia(){
  console.log('PASS: actual YouTube content script with simulated video/DOM: playback, bounded seeking, drag preview/release/cancel, watchdog, source changes, muted volume, ads and autoplay errors.');
 }
 async function testBackgroundAndBridge(){
- let listener,zoom=1.5;
+ let listener;
  const calls=[],tabs=[{id:2,url:'https://www.youtube.com/watch?v=a',title:'Chosen video',incognito:false,windowId:10,active:false},{id:3,url:'https://www.youtube.com/watch?v=b',incognito:true},{id:4,url:'https://example.com/',incognito:false}];
  const sender={id:'test',frameId:0,url:'https://marwanahmed2023-creator.github.io/swich/camera.html',tab:{id:7,windowId:1,incognito:false}};
- const chrome={runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{async query(){return tabs;},async get(id){return tabs.find(t=>t.id===id)||{};},async sendMessage(id,msg){calls.push({id,...msg});return {ok:true,state:{paused:false}};},async getZoom(){return zoom;},async setZoomSettings(id,settings){calls.push({id,settings});},async setZoom(id,value){zoom=value;calls.push({id,zoom});},async update(id,opt){calls.push({id,...opt});}},windows:{async update(id,opt){calls.push({window:id,...opt});}}};
- vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome});
+ const chrome={runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{async query(){return tabs;},async get(id){return tabs.find(t=>t.id===id)||{};},async sendMessage(id,msg){calls.push({id,...msg});return {ok:true,state:{paused:false}};},async update(id,opt){calls.push({id,...opt});}},windows:{async update(id,opt){calls.push({window:id,...opt});}}};
+ vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome,setTimeout,clearTimeout});
  const send=(request,who=sender)=>new Promise(resolve=>listener(request,who,resolve));
  const command=(action,extra={},tabId=2)=>send({type:'SWICH_MEDIA_COMMAND',tabId,command:{action,gestureId:'g1',...extra}});
- assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_PING'})).capabilities)),['camera-media']);
+ assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_PING'})).capabilities)),['camera-media','direct-playback','bounded-requests']);
  assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_MEDIA_LIST'})).tabs.map(t=>t.id))),[2]);
  await command('toggle');assert.equal(calls.at(-1).id,2,'Command targets chosen tab even when inactive');assert.equal(calls.at(-1).controllerId,7);
  for(const bad of [{action:'seek',seconds:20},{action:'volumeMove',delta:NaN},{action:'seekMove',delta:2},{action:'zoomMove',scale:99},{action:'unknown'}])assert.equal((await command(bad.action,bad)).ok,false);
  assert.equal((await command('toggle',{},3)).ok,false);assert.equal((await command('toggle',{},4)).ok,false);
  assert.equal((await send({type:'SWICH_MEDIA_LIST'},{...sender,url:'https://other.example/'})).ok,false);
- await command('zoomStart');await command('zoomMove',{scale:2.5});assert.equal(zoom,3);await command('zoomEnd');assert.equal((await command('zoomMove',{scale:1})).ok,false);
- zoom=.6;await command('zoomStart');await command('zoomMove',{scale:.4});assert.equal(zoom,.5);await command('cancel');
+ for(const action of ['zoomStart','zoomMove','zoomEnd'])assert.equal((await command(action,{scale:1})).ok,false,'Removed commands fail promptly');
+ await command('play');assert.equal(calls.at(-1).action,'play');await command('pause');assert.equal(calls.at(-1).action,'pause');await command('cancel');
  await command('focus');assert.equal(calls.at(-2).active,true);assert.equal(calls.at(-1).focused,true);
  let bridgeListener;const posted=[],origin='https://marwanahmed2023-creator.github.io';
  const win={addEventListener(type,fn){bridgeListener=fn;},postMessage(data){posted.push(data);}};win.top=win;
- vm.runInNewContext(read('tab-helper/bridge.js'),{window:win,location:{origin,pathname:'/swich/camera.html'},chrome:{runtime:{sendMessage(req,reply){listener(req,sender,reply);}}}});
+ vm.runInNewContext(read('tab-helper/bridge.js'),{setTimeout,clearTimeout,window:win,location:{origin,pathname:'/swich/camera.html'},chrome:{runtime:{sendMessage(req,reply){listener(req,sender,reply);}}}});
  const page=(type,id,extra={})=>bridgeListener({source:win,origin,data:{channel:'swich-tab-helper-v1',from:'page',type,id,...extra}});
  page('ping');assert.ok(posted.at(-1).capabilities.includes('camera-media'));
  const count=calls.length;page('media-command','once',{tabId:2,command:{action:'toggle'}});page('media-command','once',{tabId:2,command:{action:'toggle'}});await new Promise(setImmediate);
  assert.equal(calls.length,count+1,'Duplicate pending command executes once');page('media-command','once',{tabId:2,command:{action:'toggle'}});await new Promise(setImmediate);assert.equal(calls.length,count+1);
- console.log('PASS: actual extension background/bridge with simulated Chrome APIs: selected-tab routing, sender checks, validation, normal/private separation, per-tab zoom limits, focus and duplicate rejection.');
+ console.log('PASS: actual extension background/bridge with simulated Chrome APIs: selected-tab routing, sender checks, validation, normal/private separation, removed-command rejection and direct play/pause, focus and duplicate rejection.');
 }
 function staticChecks(){
  const html=read('camera.html'),app=read('camera/app.js'),ids=new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]));
@@ -111,7 +113,7 @@ function staticChecks(){
  for(const file of ['camera.html','camera-setup.html'])for(const match of read(file).matchAll(/(?:src|href)="([^"#]+)"/g)){
   const link=match[1].split('?')[0];if(!/^https?:/.test(link)&&link!=='./')assert.ok(fs.existsSync(path.join(root,link)),'Missing asset '+link);
  }
- const manifest=JSON.parse(read('tab-helper/manifest.json'));assert.equal(manifest.version,'1.1.0');assert.deepEqual(manifest.host_permissions,['https://www.youtube.com/*','https://m.youtube.com/*']);
+ const manifest=JSON.parse(read('tab-helper/manifest.json'));assert.equal(manifest.version,'1.2.0');assert.deepEqual(manifest.host_permissions,['https://www.youtube.com/*','https://m.youtube.com/*']);
  for(const script of manifest.content_scripts.flatMap(s=>s.js))assert.ok(fs.existsSync(path.join(root,'tab-helper',script)));
  console.log('PASS: camera HTML controls, local asset links and extension package references.');
 }
@@ -127,19 +129,21 @@ async function testCameraPage(){
  const document=Object.assign(new EventTarget(),{hidden:false,getElementById:id=>nodes[id],createElement:()=>new Node()});
  const win=new EventTarget();win.top=win;
  win.postMessage=data=>queueMicrotask(()=>{const e=new Event('message');Object.assign(e,{data,source:win,origin});win.dispatchEvent(e);});
- let reachable=true,cameraRequests=0,paused=false,videoTime=100,worker,listener,clock=0;
+ let reachable=true,cameraRequests=0,paused=false,videoTime=100,worker,listener,clock=0,holdMove=false,releaseMove;
  const commands=[],sender={id:'test',frameId:0,url:origin+'/swich/camera.html',tab:{id:7,incognito:false}};
  const chrome={runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{
   async query(){return [{id:2,url:'https://www.youtube.com/watch?v=chosen',title:'Selected video',incognito:false}];},
   async get(id){return {id,url:'https://www.youtube.com/watch?v=chosen',incognito:false};},
   async sendMessage(id,msg){
    if(!reachable)throw Error('Receiving end does not exist');commands.push({id,...msg});
-   if(msg.action==='toggle')paused=!paused;if(msg.action==='seek')videoTime+=msg.seconds;
-   return {ok:true,state:{paused,time:videoTime,duration:600,volume:.5,muted:false}};
+   if(msg.action==='toggle')paused=!paused;if(msg.action==='play')paused=false;if(msg.action==='pause')paused=true;if(msg.action==='seek')videoTime+=msg.seconds;
+   const result={ok:true,state:{paused,time:videoTime,duration:600,volume:.5,muted:false}};
+   if(holdMove&&msg.action==='volumeMove'){holdMove=false;return new Promise(resolve=>{releaseMove=()=>resolve(result);});}
+   return result;
   }
  }};
- vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome});
- vm.runInNewContext(read('tab-helper/bridge.js'),{window:win,location:{origin,pathname:'/swich/camera.html'},chrome:{runtime:{sendMessage(req,reply){listener(req,sender,reply);}}}});
+ vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome,setTimeout,clearTimeout});
+ vm.runInNewContext(read('tab-helper/bridge.js'),{setTimeout,clearTimeout,window:win,location:{origin,pathname:'/swich/camera.html'},chrome:{runtime:{sendMessage(req,reply){listener(req,sender,reply);}}}});
  class Worker{
   constructor(){worker=this;this.enabled=false;this.engine=new GestureEngine(command=>{if(this.enabled)this.onmessage?.({data:{type:'command',command,session:this.session}});});}
   postMessage(msg){
@@ -161,7 +165,7 @@ async function testCameraPage(){
  reachable=true;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,1);assert.equal(worker.enabled,true);
  assert.equal(nodes.cameraButton.textContent,'Pause controls');
  worker.feed(600,{pose:'like'});worker.feed(1200,{pose:'like'});worker.feed(1800,{});await flush();
- assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='toggle').length,2);
+ assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='play').length,1);
  assert.equal(nodes.status.textContent,'YouTube playing.');
  // A stale worker message must not execute after pause or on another target.
  const previousSession=worker.session;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,false);
@@ -169,6 +173,13 @@ async function testCameraPage(){
  reachable=false;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,false,'Resume checks connection too');
  reachable=true;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,true);
  await vm.runInContext("manualCommand({action:'toggle'})",ctx);assert.equal(paused,true);assert.equal(worker.enabled,true,'Manual controls reset then resume gestures');
+ const command=command=>worker.onmessage({data:{type:'command',session:worker.session,command:{gestureId:'coalesce',...command}}});
+ command({action:'volumeStart'});await flush();holdMove=true;command({action:'volumeMove',delta:.01});await flush();
+ for(let i=1;i<=40;i++)command({action:'volumeMove',delta:i/40});
+ command({action:'volumeEnd',commit:true});releaseMove();await flush();
+ const motion=commands.filter(c=>c.gestureId==='coalesce');
+ assert.deepEqual(motion.map(c=>c.action),['volumeStart','volumeMove','volumeMove','volumeEnd'],'Rapid motion updates are coalesced without losing start/end');
+ assert.equal(motion[2].delta,1,'Only the latest queued movement is sent');
  vm.runInContext('stopCamera()',ctx);
  console.log('PASS: actual camera page + bridge + background with simulated browser/worker: manual playback, visible connection failure, start/resume preflight, slow-frame gesture delivery and stale-session rejection.');
 }

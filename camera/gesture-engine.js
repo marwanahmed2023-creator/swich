@@ -17,14 +17,15 @@
     const fingers=[[5,6,8],[9,10,12],[13,14,16],[17,18,20]].map(f=>extended(...f));
     const count=fingers.filter(Boolean).length;
     const thumbsUp=count===0&&(points[2].y-points[4].y)*.75>width*.65&&(points[3].y-points[4].y)*.75>width*.12;
-    const pose=thumbsUp?'like':fingers[0]&&count===1?'one':fingers[0]&&fingers[1]&&count===2?'two':'rest';
+    const thumbsDown=count===0&&(points[4].y-points[2].y)*.75>width*.65&&(points[4].y-points[3].y)*.75>width*.12;
+    const pose=thumbsUp?'like':thumbsDown?'dislike':fingers[0]&&count===1?'one':fingers[0]&&fingers[1]&&count===2?'two':'rest';
     const tip=pose==='two'?{x:(points[8].x+points[12].x)/2,y:(points[8].y+points[12].y)/2}:points[8];
     return {label,pose,count,x:1-tip.x,y:tip.y*.75};
   }
   class GestureEngine{
     constructor(emit){
       this.emit=emit;this.mode=null;this.serial=0;this.lastTime=null;this.warmUntil=0;
-      this.blocked=false;this.restAt=null;this.restFrames=0;this.message='Show one finger, two fingers, or a thumbs-up';
+      this.blocked=false;this.restAt=null;this.restFrames=0;this.message='Thumbs-up plays · thumbs-down pauses';
     }
     reset(now=0){this.cancel();this.lastTime=null;this.warmUntil=now+400;this.blocked=false;this.clearRest();}
     clearRest(){this.restAt=null;this.restFrames=0;}
@@ -48,7 +49,7 @@
       if(hands.length!==1){
         if(this.mode){this.cancel();this.blocked=true;this.clearRest();}
         if(!hands.length)this.rest(now);else{this.blocked=true;this.clearRest();}
-        return this.message=hands.length?'Use just one hand':'Resting · show one finger, two fingers, or a thumbs-up';
+        return this.message=hands.length?'Use just one hand':'Resting · thumbs-up plays · thumbs-down pauses';
       }
       const h=hands[0];
       if(now<this.warmUntil)return this.message='Getting ready · keep your hand relaxed';
@@ -72,22 +73,23 @@
         }
         return this.message='Relax your fingers to finish';
       }
-      if(h.pose==='rest')return this.message='Ready · one finger, two fingers, or thumbs-up';
+      if(h.pose==='rest')return this.message='Ready · one/two fingers, thumbs-up or thumbs-down';
       if(!m){
         this.clearRest();
         this.mode={pose:h.pose,id:'g'+(++this.serial),label:h.label,at:now,frames:1,ready:false,started:false,kind:null,
           x:h.x,y:h.y,baseX:h.x,baseY:h.y,lastSent:0,lastValue:null,exitAt:null,exitFrames:0};
-        return this.message=h.pose==='like'?'Thumbs-up · hold briefly':h.pose==='one'?'One finger · hold briefly, then move':'Two fingers · hold briefly, then move';
+        return this.message=h.pose==='like'?'Thumbs-up · hold to play':h.pose==='dislike'?'Thumbs-down · hold to pause':h.pose==='one'?'One finger · hold briefly, then move':'Two fingers · hold briefly, then move sideways';
       }
-      if(m.exitAt!==null&&(m.pose==='like'||!m.ready)){m.at=now;m.frames=0;}
+      if(m.exitAt!==null&&(['like','dislike'].includes(m.pose)||!m.ready)){m.at=now;m.frames=0;}
       m.exitAt=null;m.exitFrames=0;m.frames++;
-      if(m.pose==='like'){
-        if(now-m.at>=600&&m.frames>=2){this.emit({action:'toggle'});this.mode=null;this.blocked=true;this.clearRest();return this.message='Play / pause · lower your thumb';}
-        return this.message='Thumbs-up · hold briefly';
+      if(m.pose==='like'||m.pose==='dislike'){
+        const action=m.pose==='like'?'play':'pause';
+        if(now-m.at>=600&&m.frames>=2){this.emit({action});this.mode=null;this.blocked=true;this.clearRest();return this.message=(action==='play'?'Play':'Pause')+' · relax your hand';}
+        return this.message=m.pose==='like'?'Thumbs-up · hold to play':'Thumbs-down · hold to pause';
       }
       if(!m.ready){
         if(now-m.at>=180&&m.frames>=2){m.ready=true;m.baseX=m.x=h.x;m.baseY=m.y=h.y;}
-        return this.message=m.pose==='one'?'One finger · left/right: 10 seconds · up/down: volume':'Two fingers · left/right: timeline · up/down: zoom';
+        return this.message=m.pose==='one'?'One finger · left/right: 10 seconds · up/down: volume':'Two fingers · move left/right for the timeline';
       }
       const alpha=1-Math.exp(-Math.max(1,elapsed)/90);
       m.x+=(h.x-m.x)*alpha;m.y+=(h.y-m.y)*alpha;
@@ -96,17 +98,18 @@
         const ax=Math.abs(dx),ay=Math.abs(dy);
         if(Math.max(ax,ay)<.045||Math.max(ax,ay)<Math.min(ax,ay)*1.35)return this.message='Ready · make a small sideways or up/down movement';
         const horizontal=ax>ay;
+        if(m.pose==='two'&&!horizontal)return this.message='Two fingers · move sideways for the timeline';
         if(m.pose==='one'&&horizontal){
           const seconds=dx>0?10:-10;this.emit({action:'seek',seconds});this.mode=null;this.blocked=true;this.clearRest();
           return this.message=(seconds>0?'Forward':'Back')+' 10 seconds · relax your finger';
         }
-        m.kind=m.pose==='one'?'volume':horizontal?'seek':'zoom';m.started=true;this.send(m.kind+'Start',now);
+        m.kind=m.pose==='one'?'volume':'seek';m.started=true;this.send(m.kind+'Start',now);
       }
-      const value=m.kind==='volume'?clamp(-deadband(dy)*4,-1,1):m.kind==='seek'?clamp(deadband(dx),-1,1):clamp(2**(-deadband(dy)*5),.4,2.5);
+      const value=m.kind==='volume'?clamp(-deadband(dy)*4,-1,1):clamp(deadband(dx),-1,1);
       if(m.lastValue===null||(now-m.lastSent>=120&&(Math.abs(value-m.lastValue)>.004||now-m.lastSent>=800))){
-        this.send(m.kind+'Move',now,m.kind==='zoom'?{scale:value}:{delta:value});m.lastValue=value;
+        this.send(m.kind+'Move',now,{delta:value});m.lastValue=value;
       }
-      return this.message=m.kind==='volume'?'Volume · move up/down · relax to finish':m.kind==='seek'?'Timeline · move left/right · bend your fingers to set':'Zoom · move up/down · relax to finish';
+      return this.message=m.kind==='volume'?'Volume · move up/down · relax to finish':'Timeline · move left/right · bend your fingers to set';
     }
   }
   const api={GestureEngine,describe};

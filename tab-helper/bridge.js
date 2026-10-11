@@ -6,12 +6,15 @@
   const completed=new Map(),pending=new Set();
   const post=data=>window.postMessage({channel:CHANNEL,from:'extension',...data},location.origin);
   function send(request,done){
+    let settled=false;
+    const finish=response=>{if(settled)return;settled=true;clearTimeout(timer);done(response);};
+    const timer=setTimeout(()=>finish({ok:false,unavailable:true,error:'The extension connection timed out. Reload Swich Tab Helper in chrome://extensions, then refresh both tabs.'}),6000);
     try{
       chrome.runtime.sendMessage(request,response=>{
-        if(chrome.runtime.lastError){done({ok:false,unavailable:true,error:'Refresh this controller page to reconnect the tab helper.'});return;}
-        done(response||{ok:false,error:'The tab helper did not reply.'});
+        if(chrome.runtime.lastError){finish({ok:false,unavailable:true,error:'Refresh this controller page to reconnect the tab helper.'});return;}
+        finish(response||{ok:false,error:'The tab helper did not reply.'});
       });
-    }catch{done({ok:false,unavailable:true,error:'Refresh this controller page to reconnect the tab helper.'});}
+    }catch{finish({ok:false,unavailable:true,error:'Refresh this controller page to reconnect the tab helper.'});}
   }
   window.addEventListener('message',event=>{
     if(event.source!==window||event.origin!==location.origin)return;

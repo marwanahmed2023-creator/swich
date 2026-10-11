@@ -26,7 +26,14 @@ async function openActiveTab(value,sender){
     return {ok:true,focused:false,error:'The link opened, but Chrome could not bring its window forward.'};
   }
 }
-const mediaQueues=new Map(),zoomSessions=new Map();
+const mediaQueues=new Map();
+function fresh(expiresAt){if(Date.now()>=expiresAt)throw new Error('That request expired. Relax your hand and try again.');}
+function within(promise,expiresAt){
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('YouTube did not respond. Open the video tab and try again.')),Math.max(1,expiresAt-Date.now()));
+    Promise.resolve(promise).then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});
+  });
+}
 function youtube(url){try{const u=new URL(url);return u.protocol==='https:'&&['www.youtube.com','m.youtube.com'].includes(u.hostname);}catch{return false;}}
 async function listVideos(sender){
   const tabs=await chrome.tabs.query({url:['https://www.youtube.com/*','https://m.youtube.com/*']});
@@ -35,51 +42,40 @@ async function listVideos(sender){
 function validatedCommand(value){
   if(!value||typeof value!=='object')throw new Error('Invalid media command.');
   const result={action:value.action};
-  if(!['status','toggle','seek','seekStart','seekMove','seekEnd','volumeStart','volumeMove','volumeEnd','zoomStart','zoomMove','zoomEnd','cancel','focus'].includes(result.action))throw new Error('Unknown media command.');
+  if(!['status','toggle','play','pause','seek','seekStart','seekMove','seekEnd','volumeStart','volumeMove','volumeEnd','cancel','focus'].includes(result.action))throw new Error('Unknown media command.');
   if(result.action==='seek'){if(![-10,10].includes(value.seconds))throw new Error('Invalid seek.');result.seconds=value.seconds;}
-  if(/^(seek|volume|zoom)(Start|Move|End)$/.test(result.action)){
+  if(/^(seek|volume)(Start|Move|End)$/.test(result.action)){
     if(typeof value.gestureId!=='string'||value.gestureId.length>100)throw new Error('Invalid gesture.');result.gestureId=value.gestureId;
   }
   if(['seekMove','volumeMove'].includes(result.action)){
     if(!Number.isFinite(value.delta)||Math.abs(value.delta)>1)throw new Error('Invalid movement.');result.delta=value.delta;
   }
-  if(result.action==='zoomMove'){
-    if(!Number.isFinite(value.scale)||value.scale<.4||value.scale>2.5)throw new Error('Invalid zoom.');result.scale=value.scale;
-  }
   if(result.action.endsWith('End'))result.commit=value.commit===true;
   return result;
 }
-async function mediaCommand(request,sender){
+async function mediaCommand(request,sender,expiresAt){
+  fresh(expiresAt);
   if(!Number.isInteger(request.tabId))throw new Error('Choose a YouTube tab first.');
+  const command=validatedCommand(request.command);
   const tab=await chrome.tabs.get(request.tabId);
+  fresh(expiresAt);
   if(!youtube(tab.url)||Boolean(tab.incognito)!==Boolean(sender.tab.incognito))throw new Error('The selected tab is no longer a YouTube page.');
-  const command=validatedCommand(request.command),key=sender.tab.id+':'+tab.id;
-  if(command.action==='focus'){await chrome.tabs.update(tab.id,{active:true});await chrome.windows.update(tab.windowId,{focused:true});return {ok:true};}
-  if(command.action==='zoomStart'){
-    await chrome.tabs.setZoomSettings(tab.id,{mode:'automatic',scope:'per-tab'});
-    zoomSessions.set(key,{id:command.gestureId,base:await chrome.tabs.getZoom(tab.id),at:Date.now()});return {ok:true};
-  }
-  if(command.action==='zoomMove'){
-    const z=zoomSessions.get(key);
-    if(!z||z.id!==command.gestureId||Date.now()-z.at>3000)throw new Error('Start a new zoom gesture.');
-    z.at=Date.now();const zoom=Math.max(.5,Math.min(3,z.base*command.scale));await chrome.tabs.setZoom(tab.id,zoom);
-    try{await chrome.tabs.sendMessage(tab.id,{type:'SWICH_VIDEO_COMMAND',action:'feedback',text:'Page zoom '+Math.round(zoom*100)+'%'});}catch{}
-    return {ok:true,zoom};
-  }
-  if(command.action==='zoomEnd'){zoomSessions.delete(key);return {ok:true};}
-  if(command.action==='cancel')zoomSessions.delete(key);
-  try{return await chrome.tabs.sendMessage(tab.id,{type:'SWICH_VIDEO_COMMAND',...command,controllerId:sender.tab.id});}
+  if(command.action==='focus'){await chrome.tabs.update(tab.id,{active:true});fresh(expiresAt);await chrome.windows.update(tab.windowId,{focused:true});return {ok:true};}
+  try{return await chrome.tabs.sendMessage(tab.id,{type:'SWICH_VIDEO_COMMAND',...command,controllerId:sender.tab.id,expiresAt});}
   catch{throw new Error('Refresh your YouTube tab once after updating the extension, then try again.');}
 }
 chrome.runtime.onMessage.addListener((request,sender,reply)=>{
   if(!allowedSender(sender)){reply({ok:false,error:'This helper only accepts requests from your Swich controller.'});return false;}
-  if(request?.type==='SWICH_PING'){reply({ok:true,version:'1.1.0',capabilities:['camera-media']});return false;}
+  if(request?.type==='SWICH_PING'){reply({ok:true,version:'1.2.0',capabilities:['camera-media','direct-playback','bounded-requests']});return false;}
   if(request?.type==='SWICH_MEDIA_LIST'){
-    listVideos(sender).then(reply).catch(()=>reply({ok:false,error:'Could not list YouTube tabs. Check the extension’s YouTube site access.'}));return true;
+    within(listVideos(sender),Date.now()+3500).then(reply).catch(()=>reply({ok:false,error:'Could not list YouTube tabs. Check the extension’s YouTube site access.'}));return true;
   }
   if(request?.type==='SWICH_MEDIA_COMMAND'){
-    const key=sender.tab.id;
-    const job=(mediaQueues.get(key)||Promise.resolve()).then(()=>mediaCommand(request,sender));
+    const key=sender.tab.id,expiresAt=Date.now()+3500;
+    const run=()=>{fresh(expiresAt);return within(mediaCommand(request,sender,expiresAt),expiresAt);};
+    // Read-only status must not wait behind a stalled playback request.
+    if(request.command?.action==='status'){Promise.resolve().then(run).then(reply).catch(error=>reply({ok:false,error:error.message}));return true;}
+    const job=(mediaQueues.get(key)||Promise.resolve()).then(run);
     const settled=job.then(reply).catch(error=>reply({ok:false,error:error.message}));mediaQueues.set(key,settled);
     settled.finally(()=>{if(mediaQueues.get(key)===settled)mediaQueues.delete(key);});return true;
   }
