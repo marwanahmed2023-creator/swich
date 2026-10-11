@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f7fa">
+  <title>Swich · Camera controls</title>
+  <link rel="stylesheet" href="camera/style.css">
+</head>
+<body>
+  <main>
+    <nav><a class="brand" href="./">swich<span> / camera</span></a><span id="extensionBadge" class="badge">Checking helper…</span></nav>
+    <header><p class="eyebrow">YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Play, seek, change volume, and zoom on YouTube.<br>All with your camera. No Arduino or ring needed.</p></header>
+    <section id="setupNotice" class="notice" hidden><strong>Update your Swich helper to version 1.1.</strong><p>The camera controls need the new extension files and YouTube access. After updating, refresh this page and your YouTube tab.</p><a href="camera-setup.html" target="_blank" rel="noopener">Download &amp; update instructions <span aria-hidden="true">↗</span></a></section>
+    <div class="workspace">
+      <section class="camera-card" aria-label="Camera preview">
+        <div class="preview">
+          <video id="cameraVideo" autoplay muted playsinline></video><canvas id="landmarks" width="640" height="480" aria-hidden="true"></canvas>
+          <div id="cameraPlaceholder" class="placeholder"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="6" y="14" width="36" height="26" rx="7" stroke="currentColor" stroke-width="2"/><path d="M15 14l4-6h10l4 6" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="27" r="7" stroke="currentColor" stroke-width="2"/></svg><strong>Your camera preview</strong><span>Choose a video, then enable your camera.</span></div>
+          <span id="liveBadge" class="preview-badge" hidden>Camera on</span>
+        </div>
+        <div class="camera-footer"><span class="dot" id="trackingDot"></span><span id="trackingHint">Your hands stay in control.</span></div>
+      </section>
+      <section class="controls-card" aria-label="Video controls">
+        <p class="eyebrow">CONNECTED VIDEO</p>
+        <label for="videoTab">Choose a YouTube tab</label>
+        <div class="select-row"><select id="videoTab" disabled><option value="">Open a YouTube video first</option></select><button id="refreshTabs" class="square" aria-label="Refresh YouTube tabs" title="Refresh YouTube tabs" disabled>↻</button></div>
+        <div class="video-links"><a href="https://www.youtube.com/" target="_blank" rel="noopener">Open YouTube ↗</a><button id="showVideo" class="text-button" disabled>Show selected video ↗</button></div>
+        <div class="player-state"><span id="playbackState">No video selected</span><span id="videoTime">—</span><span id="videoVolume">Volume —</span></div>
+        <button id="cameraButton" class="primary" disabled>Enable camera</button>
+        <button id="stopCamera" class="secondary" hidden>Stop camera</button>
+        <p id="status" class="status" role="status" aria-live="polite">Checking the Chrome helper…</p>
+        <p id="backgroundNote" class="small">Keep this controller tab open while watching YouTube. Your selected video stays selected when you switch tabs.</p>
+      </section>
+    </div>
+    <section class="gestures" aria-label="Gesture guide">
+      <div class="section-line"><h2>Six controls. Just your hands.</h2><span>Use steady, deliberate movements</span></div>
+      <div class="gesture-grid">
+        <article><span class="gesture-mark">Ⅱ / ▶</span><h3>Play &amp; pause</h3><p>Quickly pinch your thumb and index finger, then release.</p></article>
+        <article><span class="gesture-mark">−10s / +10s</span><h3>Skip backward or forward</h3><p>Raise your index and middle fingers. Swipe left or right, then lower them.</p></article>
+        <article><span class="gesture-mark">↕</span><h3>Change volume</h3><p>Pinch your thumb and middle finger. Move up or down while holding.</p></article>
+        <article><span class="gesture-mark">↔</span><h3>Drag the timeline</h3><p>Pinch your thumb and index finger, hold briefly, then move sideways. Release to jump.</p></article>
+        <article><span class="gesture-mark">− / +</span><h3>Zoom the page</h3><p>Pinch with both hands. Move them apart to zoom in, or together to zoom out.</p></article>
+        <article><span class="gesture-mark">○</span><h3>Rest between gestures</h3><p>Relax your fingers or lower your hands. Pause controls whenever you need a break.</p></article>
+      </div>
+    </section>
+    <footer><span>Volume changes the video. Zoom changes the selected YouTube page.</span><a href="./">Bluetooth controller</a></footer>
+  </main>
+  <script src="camera/app.js" defer></script>
+</body>
+</html>

@@ -1,14 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Swich Tab Helper",
-  "version": "1.0.0",
-  "description": "Opens and activates your gesture links from the Swich Bluetooth controller.",
+  "version": "1.1.0",
+  "description": "Camera controls for YouTube and automatic tab switching for Swich gesture links.",
   "minimum_chrome_version": "102",
   "background": { "service_worker": "background.js" },
+  "host_permissions": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
   "content_scripts": [{
     "matches": ["https://marwanahmed2023-creator.github.io/swich/*"],
     "js": ["bridge.js"],
     "run_at": "document_start",
+    "all_frames": false
+  }, {
+    "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+    "js": ["media.js"],
+    "run_at": "document_idle",
     "all_frames": false
   }]
 }

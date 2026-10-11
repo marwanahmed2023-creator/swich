@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
   const CHANNEL='swich-tab-helper-v1';
-  const PATHS=new Set(['/swich/','/swich/index.html','/swich/index.htm','/swich/gestures.html']);
+  const PATHS=new Set(['/swich/','/swich/index.html','/swich/index.htm','/swich/gestures.html','/swich/camera.html']);
   if(window!==window.top||!PATHS.has(location.pathname))return;
   const completed=new Map(),pending=new Set();
   const post=data=>window.postMessage({channel:CHANNEL,from:'extension',...data},location.origin);
@@ -18,13 +18,14 @@
     const data=event.data;
     if(data?.channel!==CHANNEL||data.from!=='page')return;
     if(data.type==='ping'){
-      send({type:'SWICH_PING'},response=>post({type:'ready',available:response.ok===true}));return;
+      send({type:'SWICH_PING'},response=>post({type:'ready',available:response.ok===true,version:response.version,capabilities:response.capabilities||[]}));return;
     }
-    if(data.type!=='open'||typeof data.id!=='string'||data.id.length>100)return;
+    if(!['open','media-list','media-command'].includes(data.type)||typeof data.id!=='string'||data.id.length>100)return;
     if(completed.has(data.id)){post(completed.get(data.id));return;}
     if(pending.has(data.id))return;
     pending.add(data.id);
-    send({type:'SWICH_OPEN',url:data.url},response=>{
+    const request=data.type==='open'?{type:'SWICH_OPEN',url:data.url}:data.type==='media-list'?{type:'SWICH_MEDIA_LIST'}:{type:'SWICH_MEDIA_COMMAND',tabId:data.tabId,command:data.command};
+    send(request,response=>{
       pending.delete(data.id);
       const result={type:'result',id:data.id,...response};
       completed.set(data.id,result);
