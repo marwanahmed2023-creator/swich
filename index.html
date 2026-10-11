@@ -33,7 +33,8 @@
   <input id="longHoldUrl" type="text" placeholder="e.g. wikipedia.org" autocomplete="off" spellcheck="false" inputmode="url">
   <p class="help">Wave and touch links open when you move away. The long hold link opens after 2 seconds of holding.</p>
   <p class="help">Gestures start automatically when connected. Keep this tab open while browsing; each gesture opens your link in a new tab. Leave a link blank to disable that gesture.</p>
-  <p class="help">If Chrome blocks a link, allow <strong>Pop-ups and redirects</strong> for this site. Chrome controls whether the new tab comes to the front.</p>
+  <p class="help"><span id="helperState">For automatic tab switching, </span><a id="helperInstall" href="tab-helper.html" target="_blank" rel="noopener">install the tab helper once</a>.</p>
+  <p class="help" id="browserHelp">Without the helper, allow <strong>Pop-ups and redirects</strong> for this site. Chrome controls whether the new tab comes to the front.</p>
   <div class="saved">Your links are saved in this browser.</div>
 </main>
 <script>
@@ -47,6 +48,9 @@ const $=id=>document.getElementById(id);
 let device=null,characteristic=null,connected=false,connecting=false;
 let decoder=new TextDecoder(),buffer='',lastReadingAt=null,connectedAt=0;
 let running=false,links=null,linkError='',editingLinks=false,detector=newDetector();
+const HELPER_CHANNEL='swich-tab-helper-v1';
+let helperReady=false,helperSerial=0;
+const helperRequests=new Map();
 
 function newDetector(until=0){
   return {phase:'waiting',until,quietSince:null,quietCount:0,waveSince:null,waveCount:0,touchSince:null,touchCount:0,waveConfirmed:false,touchConfirmed:false,touchSeen:false,longHoldActivated:false,releaseSince:null,releaseCount:0};
@@ -142,10 +146,39 @@ function beginEditing(){editingLinks=true;syncActivity();}
 function finishEditing(){editingLinks=false;saveLinks();updateLinks();}
 function leaveController(){if(editingLinks)finishEditing();}
 function editLink(){saveLinks();beginEditing();}
+function setHelperReady(available){
+  helperReady=available;
+  $('helperState').textContent=available?'Automatic tab switching is on':'For automatic tab switching, ';
+  $('helperInstall').hidden=available;$('browserHelp').hidden=available;
+}
+function pingHelper(){window.postMessage({channel:HELPER_CHANNEL,from:'page',type:'ping'},window.location.origin);}
+window.addEventListener('message',event=>{
+  if(event.source!==window||event.origin!==window.location.origin)return;
+  const data=event.data;
+  if(data?.channel!==HELPER_CHANNEL||data.from!=='extension')return;
+  if(data.type==='ready'){setHelperReady(data.available===true);return;}
+  if(data.type!=='result'||!helperRequests.has(data.id))return;
+  const request=helperRequests.get(data.id);
+  clearTimeout(request.timer);helperRequests.delete(data.id);
+  if(data.unavailable)setHelperReady(false);
+  if(data.ok&&data.focused){message(request.label+' link opened in the active tab.');return;}
+  message(data.error||'The tab helper could not open the link. Refresh this page and try again.',true);
+});
+function openWithHelper(url,label){
+  const id=Date.now().toString(36)+'-'+(++helperSerial);
+  const timer=setTimeout(()=>{
+    helperRequests.delete(id);
+    message('The tab helper did not confirm. Check your tabs or refresh this controller page.',true);
+  },8000);
+  helperRequests.set(id,{label,timer});
+  message('Opening '+label.toLowerCase()+' link…');
+  window.postMessage({channel:HELPER_CHANNEL,from:'page',type:'open',id,url},window.location.origin);
+}
 function openGesture(kind){
   const url=links?.[kind];
   const label={wave:'Wave',touch:'Touch',longHold:'Long hold'}[kind];
   if(!url){message(label+' detected. That link is blank.');return;}
+  if(helperReady){openWithHelper(url,label);return;}
   let opened;
   try{
     // Open the destination directly, including when the controller is in
@@ -229,9 +262,9 @@ $('connectBtn').addEventListener('click',connect);
   $(id).addEventListener('keydown',event=>{if(event.key==='Enter')$(id).blur();});
 });
 window.addEventListener('blur',leaveController);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)leaveController();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)leaveController();else pingHelper();});
 window.addEventListener('pagehide',()=>{if(device?.gatt?.connected)device.gatt.disconnect();});
-updateLinks();controls();setInterval(checkConnection,250);
+updateLinks();controls();setInterval(checkConnection,250);pingHelper();
 </script>
 </body>
 </html>

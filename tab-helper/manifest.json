@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Swich Tab Helper",
+  "version": "1.0.0",
+  "description": "Opens and activates your gesture links from the Swich Bluetooth controller.",
+  "minimum_chrome_version": "102",
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["https://marwanahmed2023-creator.github.io/swich/*"],
+    "js": ["bridge.js"],
+    "run_at": "document_start",
+    "all_frames": false
+  }]
+}

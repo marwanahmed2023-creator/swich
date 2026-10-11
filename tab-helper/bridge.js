@@ -1,0 +1,35 @@
+'use strict';
+(()=>{
+  const CHANNEL='swich-tab-helper-v1';
+  const PATHS=new Set(['/swich/','/swich/index.html','/swich/index.htm','/swich/gestures.html']);
+  if(window!==window.top||!PATHS.has(location.pathname))return;
+  const completed=new Map(),pending=new Set();
+  const post=data=>window.postMessage({channel:CHANNEL,from:'extension',...data},location.origin);
+  function send(request,done){
+    try{
+      chrome.runtime.sendMessage(request,response=>{
+        if(chrome.runtime.lastError){done({ok:false,unavailable:true,error:'Refresh this controller page to reconnect the tab helper.'});return;}
+        done(response||{ok:false,error:'The tab helper did not reply.'});
+      });
+    }catch{done({ok:false,unavailable:true,error:'Refresh this controller page to reconnect the tab helper.'});}
+  }
+  window.addEventListener('message',event=>{
+    if(event.source!==window||event.origin!==location.origin)return;
+    const data=event.data;
+    if(data?.channel!==CHANNEL||data.from!=='page')return;
+    if(data.type==='ping'){
+      send({type:'SWICH_PING'},response=>post({type:'ready',available:response.ok===true}));return;
+    }
+    if(data.type!=='open'||typeof data.id!=='string'||data.id.length>100)return;
+    if(completed.has(data.id)){post(completed.get(data.id));return;}
+    if(pending.has(data.id))return;
+    pending.add(data.id);
+    send({type:'SWICH_OPEN',url:data.url},response=>{
+      pending.delete(data.id);
+      const result={type:'result',id:data.id,...response};
+      completed.set(data.id,result);
+      if(completed.size>100)completed.delete(completed.keys().next().value);
+      post(result);
+    });
+  });
+})();
