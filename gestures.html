@@ -31,9 +31,9 @@
   <input id="touchUrl" type="text" placeholder="e.g. youtube.com" autocomplete="off" spellcheck="false" inputmode="url">
   <label for="longHoldUrl">Long hold · over 2 seconds</label>
   <input id="longHoldUrl" type="text" placeholder="e.g. wikipedia.org" autocomplete="off" spellcheck="false" inputmode="url">
-  <button id="startBtn" disabled>Start gestures</button>
   <p class="help">Wave and touch links open when you move away. The long hold link opens after 2 seconds of holding.</p>
-  <p class="help">Start opens one tab for your links. Keep this controller tab open. Leave a link blank to disable that gesture.</p>
+  <p class="help">Gestures start automatically when connected. Keep this tab open while browsing; each gesture opens your link in a new tab. Leave a link blank to disable that gesture.</p>
+  <p class="help">If Chrome blocks a link, allow <strong>Pop-ups and redirects</strong> for this site. Chrome controls whether the new tab comes to the front.</p>
   <div class="saved">Your links are saved in this browser.</div>
 </main>
 <script>
@@ -46,7 +46,7 @@ const LONG_HOLD_MS=2000;
 const $=id=>document.getElementById(id);
 let device=null,characteristic=null,connected=false,connecting=false;
 let decoder=new TextDecoder(),buffer='',lastReadingAt=null,connectedAt=0;
-let running=false,outputTab=null,links=null,detector=newDetector();
+let running=false,links=null,linkError='',editingLinks=false,detector=newDetector();
 
 function newDetector(until=0){
   return {phase:'waiting',until,quietSince:null,quietCount:0,waveSince:null,waveCount:0,touchSince:null,touchCount:0,waveConfirmed:false,touchConfirmed:false,touchSeen:false,longHoldActivated:false,releaseSince:null,releaseCount:0};
@@ -57,18 +57,26 @@ function controls(){
   $('connectBtn').disabled=connecting;
   $('connectBtn').textContent=connected?'Disconnect':'Connect Bluetooth';
   $('connectBtn').classList.toggle('connected',connected);
-  $('startBtn').disabled=!running&&!fresh();
-  $('startBtn').textContent=running?'Pause gestures':'Start gestures';
-  ['waveUrl','touchUrl','longHoldUrl'].forEach(id=>$(id).disabled=running);
 }
-function pause(text='Paused. Edit your links or click Start gestures.',error=false){
-  running=false;links=null;detector=newDetector();message(text,error);controls();
+function stop(text,error=false){
+  running=false;detector=newDetector();message(text,error);controls();
+}
+function syncActivity(){
+  if(!connected)return;
+  if(editingLinks){stop('Editing links. Click outside the boxes or switch tabs when finished.');return;}
+  if(linkError){stop(linkError,true);return;}
+  if(!links||!Object.values(links).some(Boolean)){stop('Connected. Enter a link to use gestures.');return;}
+  if(!fresh()){stop('Connected. Waiting for sensor readings…');return;}
+  if(!running){
+    running=true;detector=newDetector();
+    message('Gestures active. Keep your hand away briefly, then wave or touch.');
+  }
 }
 function cleanup(){
   if(characteristic)characteristic.removeEventListener('characteristicvaluechanged',receive);
   if(device)device.removeEventListener('gattserverdisconnected',onDisconnect);
   characteristic=null;connected=false;lastReadingAt=null;buffer='';decoder=new TextDecoder();$('reading').textContent='—';
-  pause('Disconnected. Click Connect Bluetooth to reconnect.');
+  stop('Disconnected. Click Connect Bluetooth to reconnect.');
 }
 function onDisconnect(){cleanup();}
 async function connect(){
@@ -89,7 +97,7 @@ async function connect(){
     await characteristic.startNotifications();
     if(!device.gatt.connected)throw new Error('The device disconnected during setup.');
     connected=true;connectedAt=performance.now();
-    message(lastReadingAt===null?'Connected. Waiting for readings…':'Connected. Enter your links, then click Start gestures.');
+    syncActivity();
   }catch(error){
     const oldDevice=device;cleanup();if(oldDevice?.gatt?.connected)oldDevice.gatt.disconnect();
     message(error.name==='NotFoundError'?'No HM-10 selected or the expected service was not found. Try connecting again.':'Connection failed: '+error.message,true);
@@ -105,9 +113,9 @@ function receive(event){
     const value=Number(match[1]);if(value>1023)continue;
     const now=performance.now();
     const wasFresh=lastReadingAt!==null&&now-lastReadingAt<1000;
-    if(running&&!wasFresh)pause('Readings were interrupted. Click Start gestures again.',true);
+    if(!wasFresh){running=false;detector=newDetector();}
     lastReadingAt=now;$('reading').textContent=value;
-    if(!running&&!wasFresh)message('Connected. Enter your links, then click Start gestures.');
+    if(!running)syncActivity();
     if(running)detect(value,now);
   }
   if(buffer.length>4096)buffer='';
@@ -123,33 +131,37 @@ function safeUrl(text){
 function saveLinks(){
   try{localStorage.setItem('wave-touch-links',JSON.stringify({wave:$('waveUrl').value,touch:$('touchUrl').value,longHold:$('longHoldUrl').value}));}catch{}
 }
-function start(){
-  if(running){pause();return;}
-  if(!fresh()){message('Connect Bluetooth and wait for live readings first.',true);return;}
+function updateLinks(){
+  running=false;detector=newDetector();linkError='';
   try{
-    const selected={wave:safeUrl($('waveUrl').value),touch:safeUrl($('touchUrl').value),longHold:safeUrl($('longHoldUrl').value)};
-    if(!selected.wave&&!selected.touch&&!selected.longHold)throw new Error('Enter at least one link first.');
-    // A real click opens the output tab; Bluetooth gestures reuse it.
-    if(!outputTab||outputTab.closed){
-      outputTab=window.open('about:blank','_blank');
-      if(!outputTab)throw new Error('Allow pop-ups for this page, then click Start gestures again.');
-      outputTab.opener=null;outputTab.document.title='Gesture links';
-      outputTab.document.body.textContent='Ready. Wave near the wire, touch and release within 2 seconds, or hold for over 2 seconds to open your link. Keep the controller tab open. If gestures pause, bring the controller back into view.';
-      outputTab.document.body.style.cssText='font:18px/1.6 Arial,sans-serif;color:#202124;max-width:560px;margin:80px auto;padding:24px';
-    }
-    links=selected;running=true;detector=newDetector();saveLinks();
-    message('Ready. Keep your hand away briefly, then wave or touch.');controls();
-  }catch(error){pause(error.message,true);}
+    links={wave:safeUrl($('waveUrl').value),touch:safeUrl($('touchUrl').value),longHold:safeUrl($('longHoldUrl').value)};
+  }catch{links=null;linkError='Check your links. Use a website address such as google.com, or leave the box blank.';}
+  syncActivity();
 }
+function beginEditing(){editingLinks=true;syncActivity();}
+function finishEditing(){editingLinks=false;saveLinks();updateLinks();}
+function leaveController(){if(editingLinks)finishEditing();}
+function editLink(){saveLinks();beginEditing();}
 function openGesture(kind){
   const url=links?.[kind];
   const label={wave:'Wave',touch:'Touch',longHold:'Long hold'}[kind];
   if(!url){message(label+' detected. That link is blank.');return;}
+  let opened;
   try{
-    if(!outputTab||outputTab.closed)throw new Error('The link tab is closed. Click Start gestures to open it again.');
-    outputTab.location.href=url;
-    message(label+' link opened. '+(kind==='longHold'?'Release the wire before the next gesture.':'Ready for your next gesture.'));
-  }catch(error){pause('Click Start gestures to reopen the link tab. '+error.message,true);}
+    // Open the destination directly, including when the controller is in
+    // the background. Chrome's site popup permission still applies.
+    opened=window.open(url,'_blank');
+  }catch{
+    message('Chrome could not open the link. Allow Pop-ups and redirects for this site, then try the gesture again.',true);return;
+  }
+  if(!opened){
+    message('Chrome blocked the link. Allow Pop-ups and redirects for this site, then try the gesture again.',true);return;
+  }
+  // Keep the destination from controlling this page. Focus is a request;
+  // browser preferences may keep a newly opened tab in the background.
+  try{opened.opener=null;}catch{}
+  try{opened.focus();}catch{}
+  message(label+' link opened.');
 }
 function detect(value,now){
   if(!running)return;
@@ -194,12 +206,12 @@ function detect(value,now){
     if(now-d.releaseSince>=240&&d.releaseCount>=3){
       const kind=d.longHoldActivated?null:(d.touchConfirmed?'touch':(!d.touchSeen&&d.waveConfirmed?'wave':null));
       detector=newDetector(now+1000);
-      if(kind)openGesture(kind);else message('Ready. Wave or touch the wire, then move away.');
+      if(kind)openGesture(kind);else if(!d.longHoldActivated)message('Ready. Wave or touch the wire, then move away.');
     }
   }else{d.releaseSince=null;d.releaseCount=0;}
 }
 function checkConnection(){
-  if(running&&!fresh())pause('Sensor readings stopped. Wait for readings, then click Start gestures again.',true);
+  if(running&&!fresh())stop('Sensor readings paused. Gestures resume automatically when readings return.',true);
   if(connected&&lastReadingAt===null&&performance.now()-connectedAt>5000)message('Connected, but no sensor readings. Check that the ADCTouch sketch is running.',true);
   controls();
 }
@@ -209,10 +221,17 @@ try{
   if(saved&&typeof saved.touch==='string')$('touchUrl').value=saved.touch;
   if(saved&&typeof saved.longHold==='string')$('longHoldUrl').value=saved.longHold;
 }catch{}
-$('connectBtn').addEventListener('click',connect);$('startBtn').addEventListener('click',start);
-['waveUrl','touchUrl','longHoldUrl'].forEach(id=>$(id).addEventListener('input',saveLinks));
+$('connectBtn').addEventListener('click',connect);
+['waveUrl','touchUrl','longHoldUrl'].forEach(id=>{
+  $(id).addEventListener('input',editLink);
+  $(id).addEventListener('focus',beginEditing);
+  $(id).addEventListener('blur',finishEditing);
+  $(id).addEventListener('keydown',event=>{if(event.key==='Enter')$(id).blur();});
+});
+window.addEventListener('blur',leaveController);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)leaveController();});
 window.addEventListener('pagehide',()=>{if(device?.gatt?.connected)device.gatt.disconnect();});
-controls();setInterval(checkConnection,250);
+updateLinks();controls();setInterval(checkConnection,250);
 </script>
 </body>
 </html>
