@@ -1,173 +1,318 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Universal URL Command Hub</title>
-    <style>
-        body, html { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f4f6f9; width: 100%; height: 100%; overflow: hidden; }
-        .dashboard { padding: 30px; text-align: center; box-sizing: border-box; height: 100%; overflow-y: auto; }
-        .card { background: white; max-width: 580px; margin: 0 auto 20px auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: left; }
-        h2, h3 { text-align: center; margin-top: 0; color: #202124; }
-        button { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 15px; }
-        button:hover { background: #1557b0; }
-        .config-row { display: flex; flex-direction: column; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid #f1f3f4; }
-        .controls { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
-        label { font-weight: bold; color: #5f6368; font-size: 14px; min-width: 180px; display: inline-block; }
-        input[type="text"] { padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; flex: 1; box-sizing: border-box; }
-        #status { font-weight: bold; text-align: center; padding: 10px; background: #e8eaed; border-radius: 6px; margin-bottom: 15px; }
-        .live-data { font-family: monospace; font-size: 12px; color: #70757a; text-align: center; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wave & touch · Arduino signal test</title>
+<style>
+  :root{color-scheme:light;--ink:#183034;--muted:#5b7175;--line:#dbe5e5;--accent:#087c72;--paper:#fff;--bg:#f2f6f5}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,sans-serif}
+  main{max-width:920px;margin:auto;padding:40px 22px 60px}header{margin-bottom:24px}.eyebrow{color:var(--accent);font-size:12px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}
+  h1{font-size:clamp(30px,6vw,44px);line-height:1.15;letter-spacing:-.04em;margin:9px 0}h2{font-size:20px;letter-spacing:-.02em;margin:0 0 8px}p{margin:7px 0 16px}.muted,small{color:var(--muted)}
+  section,details{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:24px;margin:16px 0}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.spread{justify-content:space-between}.grow{flex:1;min-width:220px}
+  button{background:var(--accent);color:white;border:1px solid var(--accent);border-radius:10px;padding:11px 17px;font:inherit;font-weight:650;cursor:pointer}button.secondary{background:white;color:var(--ink);border-color:var(--line)}button:disabled{opacity:.45;cursor:not-allowed}button:hover:not(:disabled){filter:brightness(.94)}button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #5faef1;outline-offset:3px}
+  #status{font-weight:650;overflow-wrap:anywhere}#status[data-kind=error]{color:#ad3d28}.connection-note{font-size:13px;margin:8px 0 0}.check{font-size:13px;color:var(--muted);display:flex;gap:7px;align-items:center;margin-top:13px}
+  .readout{font-size:56px;font-weight:700;line-height:1.1;letter-spacing:-.05em;font-variant-numeric:tabular-nums}.unit{font-size:13px;color:var(--muted);letter-spacing:0;margin-left:9px;font-weight:450}.metric{text-align:right;font-size:13px;color:var(--muted)}
+  canvas{display:block;width:100%;height:220px;margin-top:20px}.caption{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:10px}.test-buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:18px 0}.test-buttons button{padding:13px 7px;font-size:14px}.test-buttons small{display:block;font-weight:400;font-size:11px}
+  #captureStatus{min-height:28px;font-weight:600;color:var(--accent)}.table-wrap{overflow-x:auto;margin:14px 0}table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}th,td{border-bottom:1px solid var(--line);padding:10px 8px;white-space:nowrap}th{color:var(--muted);font-weight:600}th:first-child,td:first-child{padding-left:0}
+  textarea,input[type=text],input[type=number]{width:100%;border:1px solid #c8d7d7;border-radius:9px;padding:11px;font:inherit;background:white;color:var(--ink)}textarea{font-size:13px;resize:vertical;min-height:140px}label.field{display:block;font-size:13px;font-weight:650;margin:12px 0 5px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.actions{margin-top:13px}summary{cursor:pointer;font-size:18px;font-weight:700}details[open] summary{margin-bottom:14px}.notice{background:#f8f4e8;border-radius:10px;padding:12px 14px;font-size:13px;color:#6d5828}.small{font-size:13px}.badge{background:#e7f3f0;color:var(--accent);font-size:12px;padding:4px 9px;border-radius:20px;white-space:nowrap}#eventStatus{font-weight:600;margin-top:14px}#copyStatus{font-size:13px;color:var(--accent)}footer{font-size:12px;color:var(--muted);margin-top:22px}a{color:var(--accent)}
+  @media(max-width:560px){main{padding:26px 14px}section,details{padding:18px}.test-buttons{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr;gap:4px}.readout{font-size:48px}.metric{text-align:left}canvas{height:180px}}
+</style>
 </head>
 <body>
-
-    <div class="dashboard">
-        <div class="card">
-            <h2>🎛️ URL Command Center</h2>
-            <button onclick="initBluetooth()">🔌 Connect Station via Bluetooth</button>
-            <div id="status">Status: Disconnected</div>
-            <div class="live-data" id="liveStream">Raw Telemetry - A: 0 | B: 0</div>
-        </div>
-
-        <div class="card">
-            <h3>⚙️ Type Destination URLs</h3>
-            <p style="color:#70757a; font-size:13px; margin-top:-10px;">Type any web link next to the actions. Leave a box blank to disable it.</p>
-            
-            <div class="config-row">
-                <div class="controls">
-                    <label>👋 Fast Wave (Proximity):</label>
-                    <input type="text" id="urlWave" placeholder="e.g., google.com">
-                </div>
-            </div>
-
-            <div class="config-row">
-                <div class="controls">
-                    <label>☝️ Long Hold / Touch:</label>
-                    <input type="text" id="urlHold" placeholder="e.g., youtube.com">
-                </div>
-            </div>
-
-            <div class="config-row">
-                <div class="controls">
-                    <label>🔴 Physical Button Press:</label>
-                    <input type="text" id="urlButton" placeholder="e.g., netflix.com">
-                </div>
-            </div>
-        </div>
+<main>
+  <header><div class="eyebrow">Arduino Nano · HM-10</div><h1>Wave & touch</h1><p class="muted">See what your wire actually detects. Record a few tests, then compare the results.</p></header>
+  <section aria-label="Bluetooth connection">
+    <div class="row spread"><div class="grow"><div id="status" role="status" aria-live="polite">Disconnected</div><p class="connection-note muted">Open this page on your GitHub Pages site in Chrome.</p></div><button id="connectBtn">Connect Bluetooth</button><button id="disconnectBtn" class="secondary" disabled>Disconnect</button></div>
+    <label class="check"><input id="showAll" type="checkbox"> Show all Bluetooth devices if the HM-10 is missing from the list</label>
+  </section>
+  <section aria-label="Live signal">
+    <div class="row spread"><div><div class="eyebrow">Live A0 reading</div><div class="readout"><span id="liveValue">—</span><span class="unit">/ 1023</span></div></div><div class="metric"><div id="freshness">Waiting for readings</div><div id="sampleCount">0 readings received</div></div></div>
+    <canvas id="graph" role="img" aria-label="A0 readings over the last ten seconds, on a fixed scale from zero to 1023"></canvas>
+    <div class="caption"><span>Last 10 seconds · fixed scale 0–1023</span><span id="rangeLabel">No readings yet</span></div>
+  </section>
+  <section aria-labelledby="testTitle">
+    <div class="row spread"><h2 id="testTitle">1. Record your readings</h2><span class="badge">Testing mode</span></div>
+    <p class="muted small">Each button starts a 2-second countdown, then records for 5 seconds. Repeat the wave and touch tests a few times. Link actions pause during recording.</p>
+    <div class="test-buttons">
+      <button class="secondary record" data-label="Hand away" disabled>Hand away<small>Keep your hand away</small></button>
+      <button class="secondary record" data-label="Waving" disabled>Wave nearby<small>Wave without touching</small></button>
+      <button class="secondary record" data-label="Holding" disabled>Hold the wire<small>Touch and keep holding</small></button>
+      <button class="secondary record" data-label="Release" disabled>Release the wire<small>Hold during countdown; release at GO</small></button>
     </div>
+    <div id="captureStatus" role="status" aria-live="polite">Connect to start testing.</div>
+    <div class="table-wrap"><table><thead><tr><th>Test</th><th>Minimum</th><th>Maximum</th><th>Average</th><th>Readings</th></tr></thead><tbody id="resultsBody"><tr id="emptyRow"><td colspan="5" class="muted">Your recorded tests will appear here.</td></tr></tbody></table></div>
+    <h2>2. Send the results</h2><p class="muted small">Copy the summary into our chat. The graph and the downloaded data also show how the signal changes during each test.</p>
+    <textarea id="summary" readonly aria-label="Test results to copy" placeholder="Your summary will appear after the first test."></textarea>
+    <div class="row actions"><button id="copyBtn" disabled>Copy results</button><button id="downloadBtn" class="secondary" disabled>Download readings</button><button id="clearBtn" class="secondary" disabled>Clear test results</button><span id="copyStatus" role="status"></span></div>
+  </section>
+  <details>
+    <summary>Try link actions · experimental</summary>
+    <p class="notice">A bare wire can give similar readings for a wave and a touch. These are guesses based on signal size, not confirmed touch detection. Record your tests first.</p>
+    <p class="small muted">Keep your hand away for at least 2 seconds, then set a baseline. It stays fixed during gestures. The page chooses one action after the signal returns near that baseline.</p>
+    <button id="calibrateBtn" class="secondary" disabled>Set hand-away baseline</button><p id="baselineStatus" class="small muted">Baseline not set.</p>
+    <div class="grid"><div><label class="field" for="waveUrl">Wave link</label><input id="waveUrl" type="text" placeholder="https://example.com" autocomplete="off"></div><div><label class="field" for="touchUrl">Touch link</label><input id="touchUrl" type="text" placeholder="https://example.com" autocomplete="off"></div></div>
+    <div class="grid"><div><label class="field" for="waveThreshold">Minimum change for a wave</label><input id="waveThreshold" type="number" min="5" max="1022" value="35"></div><div><label class="field" for="touchThreshold">Minimum change for a touch</label><input id="touchThreshold" type="number" min="6" max="1023" value="180"></div></div>
+    <p class="small muted">Changes are measured from the baseline. The starting thresholds are only test values. A gesture reaching the touch threshold takes priority over the wave action.</p>
+    <div class="row"><button id="armBtn" disabled>Arm link actions</button><button id="stopBtn" class="secondary" disabled>Stop link actions</button></div>
+    <p class="small muted">Arming opens one output tab. Detected gestures reuse that tab. Keep this controller page open and visible. If the destination closes the connection to its tab, arm again.</p>
+    <div id="eventStatus" role="status">Link actions are off.</div>
+  </details>
+  <footer>Uses the existing Arduino stream, such as <code>A:512,B:0</code>. No new Arduino upload is needed if your current sketch sends that stream. This page only reads sensor messages.</footer>
+</main>
+<script>
+'use strict';
+const SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+const CHARACTERISTIC = '0000ffe1-0000-1000-8000-00805f9b34fb';
+const $ = id => document.getElementById(id);
+let device = null, characteristic = null, connected = false, connecting = false;
+let readBuffer = '', decoder = new TextDecoder(), lastSampleAt = null, connectedAt = 0;
+let samples = [], totalSamples = 0, runs = [], capture = null, baseline = null;
+let armed = false, outputTab = null, armedSettings = null;
+let detector = newDetector();
 
-    <script>
-        let bleDevice = null;
-        let bleCharacteristic = null;
-        let readBuffer = "";
-
-        let readings = [];
-        const SAMPLE_SIZE = 30;
-        let cooldown = false;
-        
-        // TUNED TRACKING ENGINE VARIABLES
-        let activeGestureFrames = 0;
-        let isHandPresent = false;
-
-        const HM10_SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
-        const HM10_CHAR_UUID    = "0000ffe1-0000-1000-8000-00805f9b34fb";
-
-        async function initBluetooth() {
-            const statusDiv = document.getElementById('status');
-            try {
-                statusDiv.innerText = "Connecting...";
-                bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: [HM10_SERVICE_UUID] }]
-                });
-                const server = await bleDevice.gatt.connect();
-                const service = await server.getPrimaryService(HM10_SERVICE_UUID);
-                bleCharacteristic = await service.getCharacteristic(HM10_CHAR_UUID);
-                
-                await bleCharacteristic.startNotifications();
-                bleCharacteristic.addEventListener('characteristicvaluechanged', processRawStream);
-                statusDiv.innerText = "Connected & Tuned Engine Online!";
-            } catch (error) {
-                console.error(error);
-                statusDiv.innerText = "Connection Failed.";
-            }
-        }
-
-        function processRawStream(event) {
-            const decoder = new TextDecoder();
-            readBuffer += decoder.decode(event.target.value);
-
-            let lines = readBuffer.split('\n');
-            readBuffer = lines.pop();
-
-            for (let line of lines) {
-                if (line.includes("A:") && line.includes(",B:")) {
-                    document.getElementById("liveStream").innerText = "Raw Telemetry - " + line.trim();
-                    
-                    let parts = line.split(',');
-                    let antennaVal = parseInt(parts[0].split(':')[1]);
-                    let buttonState = parseInt(parts[1].split(':')[1]);
-
-                    analyzeHardwareData(antennaVal, buttonState);
-                }
-            }
-        }
-
-        function analyzeHardwareData(antenna, button) {
-            if (button === 1 && !cooldown) {
-                navigateToCustomUrl("urlButton");
-                activateCooldown();
-                return;
-            }
-
-            readings.push(antenna);
-            if (readings.length > SAMPLE_SIZE) readings.shift();
-            
-            let sum = readings.reduce((a, b) => a + b, 0);
-            let average = sum / readings.length;
-            let deviation = Math.abs(antenna - average);
-
-            // TUNED DETECTION LOGIC:
-            // If deviation is greater than 60, your hand is currently touching/hovering
-            if (deviation > 60) {
-                isHandPresent = true;
-                activeGestureFrames++; // Count how many frames your hand stays there
-            } else {
-                // The exact frame your hand moves away, evaluate total duration
-                if (isHandPresent && !cooldown) {
-                    if (activeGestureFrames >= 25) {
-                        // Long hold/touch (Hand held close for ~1 second or longer)
-                        navigateToCustomUrl("urlHold");
-                    } else if (activeGestureFrames >= 2) {
-                        // Fast wave (Quick swipe past the metal pin)
-                        navigateToCustomUrl("urlWave");
-                    }
-                    activateCooldown();
-                }
-                // Reset frame tracking state for the next movement
-                isHandPresent = false;
-                activeGestureFrames = 0;
-            }
-        }
-
-        function navigateToCustomUrl(inputId) {
-            let userUrl = document.getElementById(inputId).value.trim();
-            if (!userUrl) return;
-
-            if (!userUrl.startsWith("http://") && !userUrl.startsWith("https://")) {
-                userUrl = "https://" + userUrl;
-            }
-
-            let newTab = window.open(userUrl, "_blank");
-            if (newTab) {
-                newTab.focus();
-            }
-        }
-
-        function activateCooldown() {
-            cooldown = true;
-            isHandPresent = false;
-            activeGestureFrames = 0;
-            setTimeout(() => { cooldown = false; }, 2500); // 2.5 second lockout protection
-        }
-    </script>
+function newDetector(){return {phase:'waiting',quietSince:null,startAt:0,startCount:0,peak:0,releaseSince:null,releaseCount:0,until:0};}
+function status(message,kind='normal'){$('status').textContent=message;$('status').dataset.kind=kind;}
+function fresh(){return connected && lastSampleAt !== null && performance.now()-lastSampleAt<1000;}
+function controls(){
+  const ready=fresh()&&!capture;
+  $('connectBtn').disabled=connecting||connected;
+  $('disconnectBtn').disabled=!connected;
+  $('showAll').disabled=connecting||connected;
+  document.querySelectorAll('.record').forEach(b=>b.disabled=!ready);
+  $('calibrateBtn').disabled=!ready||armed;
+  $('armBtn').disabled=!ready||baseline===null||armed;
+  $('stopBtn').disabled=!armed;
+  ['waveUrl','touchUrl','waveThreshold','touchThreshold'].forEach(id=>$(id).disabled=armed);
+  ['copyBtn','downloadBtn','clearBtn'].forEach(id=>$(id).disabled=!runs.length || (id==='clearBtn'&&!!capture));
+}
+function stopActions(message='Link actions are off.'){
+  armed=false;armedSettings=null;detector=newDetector();$('eventStatus').textContent=message;controls();
+}
+function cleanConnection(){
+  if(characteristic)characteristic.removeEventListener('characteristicvaluechanged',receive);
+  if(device)device.removeEventListener('gattserverdisconnected',disconnected);
+  characteristic=null;readBuffer='';decoder=new TextDecoder();connected=false;lastSampleAt=null;
+  if(capture){capture=null;$('captureStatus').textContent='Recording interrupted. Reconnect and repeat the test.';}
+  baseline=null;$('baselineStatus').textContent='Baseline not set.';$('liveValue').textContent='—';
+  stopActions('Link actions are off. Reconnect and set the baseline again.');
+}
+function disconnected(){cleanConnection();status('Disconnected. Click Connect Bluetooth to reconnect.');controls();}
+async function connect(){
+  if(connecting||connected)return;
+  if(!window.isSecureContext){status('Open this page on your HTTPS GitHub Pages site, or localhost.','error');return;}
+  if(!navigator.bluetooth){status('Bluetooth is unavailable here. Open the actual page in Chrome on your Chromebook; school policies may also restrict Bluetooth.','error');return;}
+  connecting=true;controls();status('Choose your HM-10…');
+  try{
+    const options=$('showAll').checked?{acceptAllDevices:true,optionalServices:[SERVICE]}:{filters:[{services:[SERVICE]}]};
+    device=await navigator.bluetooth.requestDevice(options);
+    device.addEventListener('gattserverdisconnected',disconnected);
+    status('Connecting to '+(device.name||'your device')+'…');
+    const server=await device.gatt.connect();
+    const service=await server.getPrimaryService(SERVICE);
+    characteristic=await service.getCharacteristic(CHARACTERISTIC);
+    if(!characteristic.properties.notify&&!characteristic.properties.indicate)throw new Error('This device does not provide sensor notifications on the expected characteristic.');
+    readBuffer='';decoder=new TextDecoder();samples=[];totalSamples=0;baseline=null;
+    characteristic.addEventListener('characteristicvaluechanged',receive);
+    await characteristic.startNotifications();
+    if(!device.gatt.connected)throw new Error('The Bluetooth connection ended during setup.');
+    connected=true;connectedAt=performance.now();
+    status('Connected to '+(device.name||'HM-10')+'. Waiting for A0 readings…');
+    $('captureStatus').textContent='Choose a test when the live readings appear.';
+  }catch(error){
+    const previous=device;cleanConnection();if(previous?.gatt?.connected)previous.gatt.disconnect();
+    status(error.name==='NotFoundError'?'No device selected or the expected service was not found. If your HM-10 was missing, try “Show all Bluetooth devices”.':'Connection failed: '+error.message,'error');
+  }finally{connecting=false;controls();}
+}
+function receive(event){
+  readBuffer+=decoder.decode(event.target.value,{stream:true});
+  let newline;
+  while((newline=readBuffer.indexOf('\n'))!==-1){
+    const line=readBuffer.slice(0,newline).trim();readBuffer=readBuffer.slice(newline+1);
+    // Ignore every other message, including password-vault responses.
+    const match=/^A:(\d{1,4}),B:([01])$/.exec(line);
+    if(!match)continue;
+    const value=Number(match[1]);if(value>1023)continue;
+    addSample(value,Number(match[2]),performance.now());
+  }
+  if(readBuffer.length>4096)readBuffer='';
+}
+function addSample(value,button,time){
+  const gap=lastSampleAt!==null&&time-lastSampleAt>1000;
+  if(gap){
+    if(capture)capture.interrupted=true;
+    stopActions('Readings paused. Set the baseline again before arming.');
+    baseline=null;$('baselineStatus').textContent='Readings paused. Set a new baseline.';
+  }
+  lastSampleAt=time;totalSamples++;samples.push({time,value});
+  samples=samples.filter(s=>time-s.time<=10000).slice(-1200);
+  $('liveValue').textContent=value;$('sampleCount').textContent=totalSamples+' readings received';
+  status('Connected to '+(device?.name||'HM-10')+'. Receiving A0 readings.');
+  if(capture&&time>=capture.start&&time<capture.end)capture.data.push({ms:Math.round(time-capture.start),value,button});
+  if(armed&&!capture)detect(value,time);
+}
+function stats(values){
+  const mean=values.reduce((sum,x)=>sum+x,0)/values.length;
+  return {min:Math.min(...values),max:Math.max(...values),mean,sd:Math.sqrt(values.reduce((sum,x)=>sum+(x-mean)**2,0)/values.length)};
+}
+function startCapture(label){
+  if(!fresh()||capture)return;
+  stopActions('Link actions are off during testing. Arm again when finished.');
+  const start=performance.now()+2000;
+  capture={label,start,end:start+5000,data:[],interrupted:false};
+  $('captureStatus').textContent='Get ready: '+label+'. Recording starts in 2 seconds.';controls();
+}
+function finishCapture(){
+  const run=capture;capture=null;
+  if(!run||run.interrupted||run.data.length<20||run.data[0].ms>600||run.data.at(-1).ms<4400){
+    $('captureStatus').textContent='Not enough continuous readings. Check the connection and repeat this test.';controls();return;
+  }
+  run.stats=stats(run.data.map(s=>s.value));runs.push(run);if(runs.length>20)runs.shift();
+  renderResults();$('captureStatus').textContent=run.label+' recorded. Repeat a test or copy your results.';controls();
+}
+function renderResults(){
+  $('resultsBody').replaceChildren();
+  for(const run of runs){
+    const tr=document.createElement('tr');
+    [run.label,run.stats.min,run.stats.max,run.stats.mean.toFixed(1),run.data.length].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.appendChild(td);});
+    $('resultsBody').appendChild(tr);
+  }
+  if(!runs.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='Your recorded tests will appear here.';td.className='muted';tr.appendChild(td);$('resultsBody').appendChild(tr);}
+  const lines=['Arduino Nano + HM-10; bare wire on A0.','Five seconds per test. Values are raw A0 readings (0–1023).',''];
+  runs.forEach((r,i)=>{
+    lines.push((i+1)+'. '+r.label+': min '+r.stats.min+', max '+r.stats.max+', average '+r.stats.mean.toFixed(1)+', standard deviation '+r.stats.sd.toFixed(1)+', '+r.data.length+' readings.');
+    const seconds=Array.from({length:5},(_,second)=>{const values=r.data.filter(s=>s.ms>=second*1000&&s.ms<(second+1)*1000).map(s=>s.value);return values.length?(values.reduce((a,b)=>a+b,0)/values.length).toFixed(0):'no data';});
+    lines.push('   Average each second: '+seconds.join(', '));
+  });
+  $('summary').value=runs.length?lines.join('\n'):'';
+}
+async function copyResults(){
+  try{await navigator.clipboard.writeText($('summary').value);$('copyStatus').textContent='Copied. Paste the results into our chat.';}
+  catch{$('summary').focus();$('summary').select();$('copyStatus').textContent='Press Ctrl+C to copy the selected results.';}
+}
+function downloadResults(){
+  const lines=['test_number,test,received_ms,a0,button'];
+  runs.forEach((r,i)=>r.data.forEach(s=>lines.push([i+1,r.label,s.ms,s.value,s.button].join(','))));
+  const url=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download='a0-readings.csv';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function calibrate(){
+  if(!fresh()||capture||armed)return;
+  const now=performance.now(), recent=samples.filter(s=>now-s.time<=2000);
+  if(recent.length<25||now-recent[0].time<1600){$('baselineStatus').textContent='Wait for 2 seconds of live readings, with your hand away, then try again.';return;}
+  const s=stats(recent.map(x=>x.value));baseline=s.mean;detector=newDetector();
+  $('baselineStatus').textContent='Fixed baseline: '+baseline.toFixed(1)+'. Hand-away range: '+s.min+'–'+s.max+'. Set the wave threshold above your normal idle variation.';controls();
+}
+function safeUrl(text){
+  text=text.trim();if(!text)return null;
+  if(!/^[a-z][a-z0-9+.-]*:/i.test(text))text='https://'+text;
+  const url=new URL(text);
+  if(!['https:','http:'].includes(url.protocol)||!url.hostname||url.username||url.password)throw new Error('Use a normal http:// or https:// website link.');
+  return url.href;
+}
+function arm(){
+  if(!fresh()||capture||baseline===null||armed)return;
+  try{
+    const wave=Number($('waveThreshold').value),touch=Number($('touchThreshold').value);
+    if(!Number.isFinite(wave)||!Number.isFinite(touch)||wave<5||wave>=touch||touch>1023)throw new Error('Use thresholds between 5 and 1023, with the touch threshold higher than the wave threshold.');
+    const waveUrl=safeUrl($('waveUrl').value),touchUrl=safeUrl($('touchUrl').value);
+    if(!waveUrl||!touchUrl)throw new Error('Enter both the wave link and the touch link.');
+    // Open the target during this real button click; sensor notifications reuse it.
+    if(!outputTab||outputTab.closed){
+      outputTab=window.open('about:blank','_blank');
+      if(!outputTab)throw new Error('The output tab was blocked. Allow pop-ups for this page and click Arm again.');
+      outputTab.opener=null;outputTab.document.title='Gesture output';
+      outputTab.document.body.textContent='Gesture output is ready. Return to the Wave & touch controller tab, keep it visible, and try your gesture.';
+      outputTab.document.body.style.cssText='font:20px/1.6 system-ui,sans-serif;max-width:650px;margin:80px auto;padding:24px;color:#183034';
+    }
+    armedSettings={wave,touch,waveUrl,touchUrl};armed=true;detector=newDetector();
+    $('eventStatus').textContent='Armed. Return to this tab and keep your hand away briefly to get ready.';controls();
+  }catch(error){stopActions(error.message);}
+}
+function detect(value,now){
+  if(!armed||!armedSettings||baseline===null||document.hidden)return;
+  const change=Math.abs(value-baseline),wave=armedSettings.wave,release=wave*.45;
+  const d=detector;
+  if(d.phase==='waiting'){
+    if(change<=release){d.quietSince??=now;if(now-d.quietSince>=300&&now>=d.until)d.phase='ready';}else d.quietSince=null;
+    return;
+  }
+  if(d.phase==='ready'){
+    if(change>=wave){d.phase='candidate';d.startAt=now;d.startCount=1;d.peak=change;}
+    return;
+  }
+  if(d.phase==='candidate'){
+    if(change<wave){d.phase='ready';return;}
+    d.startCount++;d.peak=Math.max(d.peak,change);
+    if(now-d.startAt>=90&&d.startCount>=3){d.phase='active';$('eventStatus').textContent='Signal detected. Waiting for it to return near the baseline…';}
+    return;
+  }
+  if(d.phase==='active'){
+    d.peak=Math.max(d.peak,change);
+    if(now-d.startAt>8000){detector=newDetector();$('eventStatus').textContent='Signal did not return within 8 seconds. No link opened. Keep your hand away; recalibrate if needed.';return;}
+    if(change<=release){
+      d.releaseSince??=now;d.releaseCount++;
+      if(now-d.releaseSince>=240&&d.releaseCount>=3){
+        const kind=d.peak>=armedSettings.touch?'Touch':'Wave';
+        const url=kind==='Touch'?armedSettings.touchUrl:armedSettings.waveUrl;
+        detector=newDetector();detector.until=now+1200;
+        try{
+          if(!outputTab||outputTab.closed)throw new Error('Output tab unavailable. Click Arm to open another.');
+          outputTab.location.href=url;
+          $('eventStatus').textContent=kind+' guess → link sent to the output tab. Peak change: '+d.peak.toFixed(0)+'.';
+        }catch(error){stopActions('Could not navigate the output tab. Stop and arm again. '+error.message);}
+      }
+    }else{d.releaseSince=null;d.releaseCount=0;}
+  }
+}
+function drawGraph(){
+  const canvas=$('graph'),rect=canvas.getBoundingClientRect(),ratio=window.devicePixelRatio||1;
+  const width=Math.round(rect.width*ratio),height=Math.round(rect.height*ratio);
+  if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+  const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);
+  const w=rect.width,h=rect.height,left=38,right=w-8,top=8,bottom=h-20;
+  ctx.clearRect(0,0,w,h);ctx.font='11px system-ui';ctx.lineWidth=1;
+  const y=value=>bottom-(value/1023)*(bottom-top);
+  [0,256,512,768,1023].forEach(value=>{ctx.strokeStyle='#e4eceb';ctx.beginPath();ctx.moveTo(left,y(value));ctx.lineTo(right,y(value));ctx.stroke();ctx.fillStyle='#6a7f81';ctx.fillText(String(value),0,y(value)+4);});
+  if(baseline!==null){ctx.strokeStyle='#bd9344';ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(left,y(baseline));ctx.lineTo(right,y(baseline));ctx.stroke();ctx.setLineDash([]);}
+  const now=performance.now(),visible=samples.filter(s=>now-s.time<=10000);
+  if(visible.length){
+    ctx.strokeStyle='#087c72';ctx.lineWidth=2;ctx.beginPath();let previous=null;
+    for(const sample of visible){const x=left+(1-(now-sample.time)/10000)*(right-left);if(!previous||sample.time-previous.time>1000)ctx.moveTo(x,y(sample.value));else ctx.lineTo(x,y(sample.value));previous=sample;}ctx.stroke();
+    const range=stats(visible.map(s=>s.value));$('rangeLabel').textContent='Visible range '+range.min+'–'+range.max;
+  }else{$('rangeLabel').textContent='No recent readings';}
+}
+function tick(){
+  const now=performance.now();
+  if(capture){
+    if(document.hidden)capture.interrupted=true;
+    if(now>=capture.end)finishCapture();
+    else if(now<capture.start)$('captureStatus').textContent='Get ready: '+capture.label+'. Starts in '+Math.ceil((capture.start-now)/1000)+'…';
+    else $('captureStatus').textContent='GO: '+capture.label+' — '+Math.ceil((capture.end-now)/1000)+' seconds left.';
+  }
+  if(lastSampleAt!==null){
+    const age=now-lastSampleAt;$('freshness').textContent=age<1000?'Receiving live readings':'Last reading '+(age/1000).toFixed(1)+' seconds ago';
+    if(age>=1000){
+      if(capture)capture.interrupted=true;
+      if(armed)stopActions('Readings paused. Set the baseline again before arming.');
+      if(baseline!==null){baseline=null;$('baselineStatus').textContent='Readings paused. Set a new baseline.';}
+      if(connected)status('Bluetooth connected, but sensor readings have stopped. Check the Arduino.','error');
+    }
+  }else{
+    $('freshness').textContent=connected?'Waiting for A0 readings':'Waiting for connection';
+    if(connected&&now-connectedAt>5000)status('Connected, but no A0 readings received. Your Arduino must send lines such as A:512,B:0 at 9600 baud.','error');
+  }
+  drawGraph();controls();
+}
+$('connectBtn').addEventListener('click',connect);
+$('disconnectBtn').addEventListener('click',()=>{if(device?.gatt?.connected)device.gatt.disconnect();else disconnected();});
+document.querySelectorAll('.record').forEach(b=>b.addEventListener('click',()=>startCapture(b.dataset.label)));
+$('copyBtn').addEventListener('click',copyResults);$('downloadBtn').addEventListener('click',downloadResults);
+$('clearBtn').addEventListener('click',()=>{if(capture)return;runs=[];renderResults();$('copyStatus').textContent='';$('captureStatus').textContent='Test results cleared. Choose a test to record again.';controls();});
+$('calibrateBtn').addEventListener('click',calibrate);$('armBtn').addEventListener('click',arm);$('stopBtn').addEventListener('click',()=>stopActions());
+document.addEventListener('visibilitychange',()=>{detector=newDetector();if(document.hidden&&capture)capture.interrupted=true;});
+window.addEventListener('pagehide',()=>{if(device?.gatt?.connected)device.gatt.disconnect();});
+controls();drawGraph();setInterval(tick,100);
+</script>
 </body>
 </html>
