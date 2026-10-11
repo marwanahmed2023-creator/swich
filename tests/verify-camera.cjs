@@ -3,39 +3,53 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 const root=fs.existsSync(path.join(__dirname,'camera'))?__dirname:path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const {GestureEngine,describe}=require(path.join(root,'camera/gesture-engine.js'));
-const hand=extra=>({label:'Right',x:.5,y:.5,index:.8,middle:.8,my:.5,vx:.5,vy:.5,victory:false,...extra});
+const hand=extra=>({label:'Right',pose:'rest',count:0,x:.5,y:.5,...extra});
 function engine(){const events=[];return {events,engine:new GestureEngine(e=>events.push(e))};}
 function feed(test,frames){for(const [time,features] of frames)test.engine.update(features===null?[]:Array.isArray(features)?features:[hand(features)],time);}
 function actions(test){return test.events.map(e=>e.action);}
-function testGestures(){
- let t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[200,{}],[300,{}],[400,{}]]);assert.deepEqual(actions(t),['toggle']);
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[200,null],[300,{}]]);assert.deepEqual(actions(t),[],'Lost hand never acts as a click');
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[450,{index:.1,x:.7}],[550,{x:.7}]]);
- assert.deepEqual(actions(t),['seekStart','seekMove','seekEnd']);assert.equal(t.events[2].commit,true);assert.ok(Math.abs(t.events[1].delta-.2)<1e-9);
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[400,null]]);assert.deepEqual(actions(t),['seekStart','seekEnd']);assert.equal(t.events[1].commit,false);
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1}],[300,{index:.1,x:.6}],[1900,{index:.1,x:.7}]]);assert.equal(t.events.at(-1).commit,false,'Frame stalls cancel drag');
- for(const frames of [
-  [[0,{index:.1}],[300,{index:.1}],[600,{}]],
-  [[0,{index:.1}],[100,{index:.1}],[200,{x:.57}]],
-  [[0,{index:.1}],[600,{index:.1}],[1200,{}]],
-  [[0,{index:.3}],[250,{index:.3}],[400,{index:.45,x:.57}],[600,{index:.8,x:.6}]]
- ]){t=engine();feed(t,frames);assert.deepEqual(actions(t),['toggle'],'Slower pinches and finger-opening movement still toggle once');}
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1,y:.6}],[200,{y:.6}]]);assert.deepEqual(actions(t),[],'Moving the closed pinch is not a click');
- t=engine();feed(t,[[0,{index:.1}],[100,{index:.1,label:'Left'}],[200,{}]]);assert.deepEqual(actions(t),[],'Changing tracked hands never clicks');
- t=engine();feed(t,[[0,{middle:.1}],[100,{middle:.1}],[200,{middle:.1}],[310,{middle:.1,my:.3}],[420,{}]]);assert.deepEqual(actions(t),['volumeStart','volumeMove','volumeEnd']);assert.ok(Math.abs(t.events[1].delta-.36)<1e-9);
- for(const direction of [-1,1]){
-  t=engine();feed(t,[[0,{victory:true}],[80,{victory:true,vx:.5+direction*.1}],[160,{victory:true,vx:.5+direction*.25}],[300,{victory:true,vx:.5+direction*.3}],[450,{}]]);
-  assert.deepEqual(actions(t),['seek']);assert.equal(t.events[0].seconds,direction*10,'Swipe direction maps to mirrored camera');
- }
- t=engine();const pair=span=>[hand({index:.1,x:.5-span/2}),hand({index:.1,x:.5+span/2,label:'Left'})];
- feed(t,[[0,pair(.3)],[100,pair(.3)],[250,pair(.3)],[450,pair(.6)],[550,{}]]);
- assert.deepEqual(actions(t),['zoomStart','zoomMove','zoomEnd']);assert.ok(Math.abs(t.events[1].scale-2)<1e-9);
- t=engine();feed(t,[[0,{index:.1}],[100,pair(.3)],[200,pair(.3)],[350,pair(.3)],[550,pair(.6)],[650,null]]);assert.equal(actions(t).includes('toggle'),false);assert.equal(t.events.at(-1).commit,false);
- assert.equal(describe([]),null);assert.equal(describe(Array.from({length:21},()=>({x:NaN,y:0}))),null);
- const points=Array.from({length:21},()=>({x:.5,y:.5}));points[5]={x:.3,y:.6};points[17]={x:.7,y:.6};points[4]={x:.3,y:.2};points[8]={x:.34,y:.2};
- const feature=describe(points,'Right');assert.ok(Math.abs(feature.index-.1)<1e-9);assert.ok(Math.abs(feature.x-.68)<1e-9);
- console.log('PASS: deliberate clicks, timeline commit/cancel, lost hands/frame stalls, hand switching, volume, one-shot bidirectional swipes, two-hand zoom priority and landmark normalization.');
+function landmarks(raised=[],thumb=false){
+ const p=Array.from({length:21},()=>({x:.5,y:.7}));p[0]={x:.5,y:.9};
+ [5,9,13,17].forEach((base,i)=>{const x=.4+i*.07,up=raised.includes(i);p[base]={x,y:.65};p[base+1]={x,y:up?.47:.55};p[base+2]={x,y:up?.36:.65};p[base+3]={x,y:up?.27:.71};});
+ p[1]={x:.38,y:.82};p[2]={x:.34,y:.75};p[3]={x:.30,y:thumb?.56:.70};p[4]={x:.28,y:thumb?.40:.75};return p;
 }
+function testGestures(){
+ let t=engine();feed(t,[[0,{pose:'like'}],[300,{pose:'like'}],[650,{pose:'like'}],[1000,{pose:'like'}],[1500,{pose:'like'}]]);assert.deepEqual(actions(t),['toggle'],'Held thumbs-up acts once');
+ feed(t,[[1600,{}],[1900,{}],[2000,{pose:'like'}],[2650,{pose:'like'}]]);assert.deepEqual(actions(t),['toggle','toggle'],'Relaxing rearms play/pause');
+ t=engine();feed(t,[[0,{pose:'like'}],[100,{pose:'like'}],[200,null]]);assert.deepEqual(actions(t),[],'Brief thumbs-up or lost hand never toggles');
+ t=engine();feed(t,[[0,{pose:'like'}],[400,{}],[650,{pose:'like'}]]);assert.deepEqual(actions(t),[],'Separate brief thumbs-up poses do not combine into a hold');
+ t=engine();feed(t,[[0,{pose:'like'}],[600,{pose:'like'}]]);assert.deepEqual(actions(t),['toggle'],'Slow camera frames still recognize thumbs-up');
+ for(const direction of [-1,1]){
+  t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.5+direction*.065}],[600,{pose:'one',x:.5+direction*.15}],[900,{pose:'one',x:.5+direction*.2}]]);
+  assert.deepEqual(actions(t),['seek']);assert.equal(t.events[0].seconds,direction*10,'Small one-finger motion seeks in mirrored direction once');
+ }
+ t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.51,y:.51}],[600,{pose:'one',x:.49,y:.49}]]);assert.deepEqual(actions(t),[],'Resting jitter is ignored');
+ t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.6,y:.6}]]);assert.deepEqual(actions(t),[],'Ambiguous diagonal does not choose an action');
+ t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',y:.435}],[600,{pose:'one',y:.4,x:.7}],[800,{}],[1000,{}]]);
+ assert.deepEqual(actions(t),['volumeStart','volumeMove','volumeMove','volumeEnd']);assert.ok(t.events[1].delta>0);assert.equal(t.events.at(-1).commit,true);assert.equal(actions(t).includes('seek'),false,'First direction locks volume even if hand drifts sideways');
+ t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',y:.565}]]);assert.ok(t.events[1].delta<0,'Moving down lowers volume');
+ t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.565}],[600,{pose:'two',x:.6}],[800,{}],[1000,{}]]);
+ assert.deepEqual(actions(t),['seekStart','seekMove','seekMove','seekEnd']);assert.ok(t.events[1].delta>0);assert.equal(t.events.at(-1).commit,true,'Bending two fingers commits timeline');
+ t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.435}],[500,null]]);assert.ok(t.events[1].delta<0);assert.equal(t.events.at(-1).action,'seekEnd');assert.equal(t.events.at(-1).commit,false,'Lost hand cancels timeline');
+ t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.565}],[500,{pose:'one'}],[600,{pose:'two',x:.565}]]);assert.equal(actions(t).includes('seekEnd'),false,'One finger-count error does not finish a drag');
+ feed(t,[[2300,{pose:'two',x:.565}]]);assert.equal(t.events.at(-1).commit,false,'A stale stream cancels a drag');
+ for(const direction of [-1,1]){
+  t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',y:.5+direction*.065}],[600,{}],[800,{}]]);
+  assert.deepEqual(actions(t),['zoomStart','zoomMove','zoomEnd']);assert.ok(direction<0?t.events[1].scale>1:t.events[1].scale<1,'Two-finger vertical motion controls zoom');
+ }
+ t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.565}],[600,{pose:'two',label:'Left'}]]);assert.equal(t.events.at(-1).commit,false,'Switching tracked hands cancels');
+ t=engine();feed(t,[[0,{pose:'two'}],[200,{pose:'two'}],[400,{pose:'two',x:.565}],[600,[hand({pose:'two'}),hand({pose:'two',label:'Left'})]]]);assert.equal(t.events.at(-1).commit,false,'A second hand cancels instead of selecting another action');
+ t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',y:.435}],[1400,{pose:'one',y:.435}]]);assert.equal(t.events.at(-1).action,'volumeMove','Stationary continuous gestures refresh their video transaction');
+ t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.565}],[500,null],[600,{pose:'one'}],[800,{pose:'one',x:.6}]]);assert.deepEqual(actions(t),['seek'],'One missing frame cannot rearm a held action');
+ assert.equal(describe([]),null);assert.equal(describe(Array.from({length:21},()=>({x:NaN,y:0}))),null);
+ for(const [raised,thumb,pose] of [[[],false,'rest'],[[],true,'like'],[[0],false,'one'],[[0,1],false,'two'],[[0,1,2,3],false,'rest'],[[1],false,'rest']]){
+  const points=landmarks(raised,thumb);assert.equal(describe(points).pose,pose,'Landmark classifier: '+pose);
+  assert.equal(describe(points.map(p=>({x:1-p.x,y:p.y})),'Left').pose,pose,'Both hands classify the same');
+ }
+ const points=landmarks([0]);points[8].x+=.04;const feature=describe(points);assert.equal(feature.pose,'one');assert.ok(Math.abs(feature.x-.56)<1e-9,'Position follows index fingertip, not palm');
+ assert.equal(describe(landmarks([],true).map(p=>({x:p.x,y:1-p.y}))).pose,'rest','Thumbs-down does not play/pause');
+ console.log('PASS: actual landmark finger counts, mirrored fingertips, thumbs-up debounce, small one/two-finger motions, axis lock, jitter rejection, drag commit/cancel, rest rearming and slow frames.');
+}
+
 class Element{
  constructor(){this.style={};this.children=[];this.parentNode=null;this.textContent='';}
  appendChild(e){this.children.push(e);e.parentNode=this;return e;}append(...items){items.forEach(x=>this.appendChild(x));}attachShadow(){return new Element();}
@@ -146,7 +160,7 @@ async function testCameraPage(){
  reachable=false;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,0,'Cannot start tracking when YouTube is unreachable');assert.match(nodes.videoConnection.textContent,/Refresh your YouTube/);
  reachable=true;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,1);assert.equal(worker.enabled,true);
  assert.equal(nodes.cameraButton.textContent,'Pause controls');
- worker.feed(600,{index:.1});worker.feed(1200,{index:.1});worker.feed(1800,{});await flush();
+ worker.feed(600,{pose:'like'});worker.feed(1200,{pose:'like'});worker.feed(1800,{});await flush();
  assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='toggle').length,2);
  assert.equal(nodes.status.textContent,'YouTube playing.');
  // A stale worker message must not execute after pause or on another target.

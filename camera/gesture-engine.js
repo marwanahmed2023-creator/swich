@@ -1,84 +1,112 @@
 (function(root){
   'use strict';
-  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
-  const PINCH=.35,RELEASE=.52,STALE_FRAME=1500;
+  // Correct normalized image coordinates for the camera's 4:3 frame.
+  const distance=(a,b)=>Math.hypot(a.x-b.x,(a.y-b.y)*.75);
+  const deadband=value=>Math.sign(value)*Math.max(0,Math.abs(value)-.02);
   function describe(points,label=''){
     if(!Array.isArray(points)||points.length!==21||points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return null;
     const width=distance(points[5],points[17]);
-    if(width<.035)return null;
-    const extended=(tip,joint)=>distance(points[tip],points[0])>distance(points[joint],points[0])*1.16;
-    return {label,x:1-(points[4].x+points[8].x)/2,y:(points[4].y+points[8].y)/2,
-      index:distance(points[4],points[8])/width,middle:distance(points[4],points[12])/width,
-      my:(points[4].y+points[12].y)/2,
-      vx:1-(points[8].x+points[12].x)/2,vy:(points[8].y+points[12].y)/2,
-      victory:extended(8,6)&&extended(12,10)&&!extended(16,14)&&!extended(20,18)};
+    if(width<.025)return null;
+    function extended(base,joint,tip){
+      const a={x:points[base].x-points[joint].x,y:(points[base].y-points[joint].y)*.75};
+      const b={x:points[tip].x-points[joint].x,y:(points[tip].y-points[joint].y)*.75};
+      const lengths=Math.hypot(a.x,a.y)*Math.hypot(b.x,b.y);
+      return lengths>0&&(a.x*b.x+a.y*b.y)/lengths<-.65&&distance(points[tip],points[0])>distance(points[joint],points[0])*1.06;
+    }
+    const fingers=[[5,6,8],[9,10,12],[13,14,16],[17,18,20]].map(f=>extended(...f));
+    const count=fingers.filter(Boolean).length;
+    const thumbsUp=count===0&&(points[2].y-points[4].y)*.75>width*.65&&(points[3].y-points[4].y)*.75>width*.12;
+    const pose=thumbsUp?'like':fingers[0]&&count===1?'one':fingers[0]&&fingers[1]&&count===2?'two':'rest';
+    const tip=pose==='two'?{x:(points[8].x+points[12].x)/2,y:(points[8].y+points[12].y)/2}:points[8];
+    return {label,pose,count,x:1-tip.x,y:tip.y*.75};
   }
   class GestureEngine{
-    constructor(emit){this.emit=emit;this.mode=null;this.lastTime=null;this.cooldown=0;this.serial=0;this.warmUntil=0;this.message='Show a relaxed hand';}
-    reset(now=0){this.cancel();this.lastTime=null;this.cooldown=now+350;this.warmUntil=now+500;this.message='Show a relaxed hand';}
-    cancel(){
-      if(this.mode?.started)this.emit({action:this.mode.type==='index'?'seekEnd':this.mode.type==='volume'?'volumeEnd':'zoomEnd',gestureId:this.mode.id,commit:false});
-      this.mode=null;
+    constructor(emit){
+      this.emit=emit;this.mode=null;this.serial=0;this.lastTime=null;this.warmUntil=0;
+      this.blocked=false;this.restAt=null;this.restFrames=0;this.message='Show one finger, two fingers, or a thumbs-up';
     }
-    start(type,h,now,span){this.mode={type,id:'g'+(++this.serial),at:now,x:h.x,y:h.y,label:h.label,span,frames:1,moved:0,started:false,lastSent:0};}
+    reset(now=0){this.cancel();this.lastTime=null;this.warmUntil=now+400;this.blocked=false;this.clearRest();}
+    clearRest(){this.restAt=null;this.restFrames=0;}
+    rest(now){
+      if(this.restAt===null)this.restAt=now;
+      this.restFrames++;
+      if(now-this.restAt>=250&&this.restFrames>=2){this.blocked=false;this.clearRest();}
+    }
+    finish(commit){
+      const m=this.mode;this.mode=null;
+      if(m?.started)this.emit({action:m.kind+'End',gestureId:m.id,commit});
+    }
+    cancel(){this.finish(false);}
     send(action,now,extra={}){this.mode.lastSent=now;this.emit({action,gestureId:this.mode.id,...extra});}
     update(hands,now){
-      if(this.lastTime!==null&&(now-this.lastTime>STALE_FRAME||now<=this.lastTime)){this.cancel();this.cooldown=now+400;this.warmUntil=now+400;}
+      const elapsed=this.lastTime===null?100:now-this.lastTime;
+      if(this.lastTime!==null&&(elapsed>1500||elapsed<=0)){
+        this.cancel();this.blocked=true;this.clearRest();this.warmUntil=now+400;
+      }
       this.lastTime=now;
-      if(!hands.length){this.cancel();this.message='Show your hand to control the video';return this.message;}
-      if(now<this.warmUntil||now<this.cooldown){this.message='Ready for your next gesture';return this.message;}
-      const two=hands.length>=2&&hands[0].index<.38&&hands[1].index<.38;
-      if(two){
-        const span=Math.hypot(hands[0].x-hands[1].x,hands[0].y-hands[1].y);
-        if(span<.12){this.cancel();this.message='Move your hands farther apart';return this.message;}
-        if(this.mode?.type!=='zoom'){this.cancel();this.start('zoom',hands[0],now,span);}
-        const m=this.mode;m.frames++;
-        if(!m.started&&now-m.at>=220&&m.frames>=3){m.started=true;this.send('zoomStart',now);}
-        if(m.started&&now-m.lastSent>=160)this.send('zoomMove',now,{scale:clamp(span/m.span,.4,2.5)});
-        this.message='Two-hand pinch · page zoom';return this.message;
+      if(hands.length!==1){
+        if(this.mode){this.cancel();this.blocked=true;this.clearRest();}
+        if(!hands.length)this.rest(now);else{this.blocked=true;this.clearRest();}
+        return this.message=hands.length?'Use just one hand':'Resting · show one finger, two fingers, or a thumbs-up';
       }
-      if(this.mode?.type==='zoom'){this.send('zoomEnd',now,{commit:true});this.mode=null;this.cooldown=now+400;return this.message='Zoom set';}
-      if(hands.length!==1){this.cancel();return this.message='Use one hand, or pinch with both to zoom';}
       const h=hands[0];
-      if(this.mode?.label&&h.label&&this.mode.label!==h.label){this.cancel();this.cooldown=now+350;return this.message='Hand changed · release and try again';}
-      const m=this.mode;
-      if(m?.type==='index'){
-        m.frames++;
-        if(h.index>RELEASE){
-          if(m.started)this.send('seekEnd',now,{commit:true});
-          else if(now-m.at>=90&&now-m.at<=1400&&m.frames>=3&&m.moved<.075)this.emit({action:'toggle'});
-          this.mode=null;this.cooldown=now+450;return this.message=m.started?'Timeline set':'Ready';
+      if(now<this.warmUntil)return this.message='Getting ready · keep your hand relaxed';
+      if(this.mode?.label&&h.label&&this.mode.label!==h.label){
+        this.cancel();this.blocked=true;this.clearRest();return this.message='Hand changed · relax your fingers first';
+      }
+      if(this.blocked){
+        if(h.pose==='rest')this.rest(now);else this.clearRest();
+        return this.message=this.blocked?'Relax your fingers before the next gesture':'Ready for your next gesture';
+      }
+      let m=this.mode;
+      if(m&&h.pose!==m.pose){
+        if(m.exitAt===null){m.exitAt=now;m.exitFrames=0;}
+        m.exitFrames++;
+        // One noisy frame must not finish a timeline drag or switch its action.
+        if(now-m.exitAt>=180&&m.exitFrames>=2){
+          const restAt=m.exitAt,restFrames=m.exitFrames;
+          this.finish(true);this.blocked=true;this.clearRest();
+          if(h.pose==='rest'){this.restAt=restAt;this.restFrames=restFrames;this.rest(now);}
+          return this.message='Finished · relax your fingers';
         }
-        // Opening the fingers moves their midpoint. Only measure drag motion
-        // while they are still pinched, so a normal release can toggle playback.
-        if(h.index>PINCH)return this.message='Release your pinch to finish';
-        m.moved=Math.max(m.moved,Math.hypot(h.x-m.x,h.y-m.y));
-        if(!m.started&&now-m.at>=300&&Math.abs(h.x-m.x)>.045&&m.frames>=3){m.started=true;this.send('seekStart',now);}
-        if(m.started&&now-m.lastSent>=100)this.send('seekMove',now,{delta:clamp(h.x-m.x,-1,1)});
-        return this.message=m.started?'Drag sideways · release to seek':'Quick release: play/pause · hold and move: timeline';
+        return this.message='Relax your fingers to finish';
       }
-      if(m?.type==='volume'){
-        m.frames++;
-        if(h.middle>RELEASE){if(m.started)this.send('volumeEnd',now,{commit:true});this.mode=null;this.cooldown=now+300;return this.message='Volume set';}
-        if(!m.started&&now-m.at>=180&&m.frames>=3){m.started=true;this.send('volumeStart',now);}
-        if(m.started&&now-m.lastSent>=100)this.send('volumeMove',now,{delta:clamp((m.y-h.my)*1.8,-1,1)});
-        return this.message='Middle-finger pinch · move up or down for volume';
+      if(h.pose==='rest')return this.message='Ready · one finger, two fingers, or thumbs-up';
+      if(!m){
+        this.clearRest();
+        this.mode={pose:h.pose,id:'g'+(++this.serial),label:h.label,at:now,frames:1,ready:false,started:false,kind:null,
+          x:h.x,y:h.y,baseX:h.x,baseY:h.y,lastSent:0,lastValue:null,exitAt:null,exitFrames:0};
+        return this.message=h.pose==='like'?'Thumbs-up · hold briefly':h.pose==='one'?'One finger · hold briefly, then move':'Two fingers · hold briefly, then move';
       }
-      if(m?.type==='swipe'){
-        if(!h.victory){this.mode=null;return this.message='Ready';}
-        m.frames++;
-        if(!m.done&&now-m.at>=100&&now-m.at<=900&&m.frames>=3&&Math.abs(h.vx-m.x)>.17&&Math.abs(h.vy-m.y)<.16){
-          const seconds=h.vx>m.x?10:-10;this.emit({action:'seek',seconds});m.done=true;
-          return this.message=seconds>0?'Forward 10 seconds':'Back 10 seconds';
+      if(m.exitAt!==null&&(m.pose==='like'||!m.ready)){m.at=now;m.frames=0;}
+      m.exitAt=null;m.exitFrames=0;m.frames++;
+      if(m.pose==='like'){
+        if(now-m.at>=600&&m.frames>=2){this.emit({action:'toggle'});this.mode=null;this.blocked=true;this.clearRest();return this.message='Play / pause · lower your thumb';}
+        return this.message='Thumbs-up · hold briefly';
+      }
+      if(!m.ready){
+        if(now-m.at>=180&&m.frames>=2){m.ready=true;m.baseX=m.x=h.x;m.baseY=m.y=h.y;}
+        return this.message=m.pose==='one'?'One finger · left/right: 10 seconds · up/down: volume':'Two fingers · left/right: timeline · up/down: zoom';
+      }
+      const alpha=1-Math.exp(-Math.max(1,elapsed)/90);
+      m.x+=(h.x-m.x)*alpha;m.y+=(h.y-m.y)*alpha;
+      const dx=m.x-m.baseX,dy=m.y-m.baseY;
+      if(!m.kind){
+        const ax=Math.abs(dx),ay=Math.abs(dy);
+        if(Math.max(ax,ay)<.045||Math.max(ax,ay)<Math.min(ax,ay)*1.35)return this.message='Ready · make a small sideways or up/down movement';
+        const horizontal=ax>ay;
+        if(m.pose==='one'&&horizontal){
+          const seconds=dx>0?10:-10;this.emit({action:'seek',seconds});this.mode=null;this.blocked=true;this.clearRest();
+          return this.message=(seconds>0?'Forward':'Back')+' 10 seconds · relax your finger';
         }
-        if(!m.done&&now-m.at>900){m.at=now;m.x=h.vx;m.y=h.vy;m.frames=1;}
-        return this.message=m.done?'Lower your fingers before the next swipe':'Two fingers up · swipe left or right';
+        m.kind=m.pose==='one'?'volume':horizontal?'seek':'zoom';m.started=true;this.send(m.kind+'Start',now);
       }
-      if(h.middle<PINCH&&h.middle<h.index*.8){this.start('volume',h,now);this.mode.y=h.my;return this.message='Volume gesture';}
-      if(h.index<PINCH){this.start('index',h,now);return this.message='Pinch detected';}
-      if(h.victory){this.start('swipe',h,now);this.mode.x=h.vx;this.mode.y=h.vy;return this.message='Swipe left or right';}
-      return this.message='Ready · pinch, swipe, or use two hands';
+      const value=m.kind==='volume'?clamp(-deadband(dy)*4,-1,1):m.kind==='seek'?clamp(deadband(dx),-1,1):clamp(2**(-deadband(dy)*5),.4,2.5);
+      if(m.lastValue===null||(now-m.lastSent>=120&&(Math.abs(value-m.lastValue)>.004||now-m.lastSent>=800))){
+        this.send(m.kind+'Move',now,m.kind==='zoom'?{scale:value}:{delta:value});m.lastValue=value;
+      }
+      return this.message=m.kind==='volume'?'Volume · move up/down · relax to finish':m.kind==='seek'?'Timeline · move left/right · bend your fingers to set':'Zoom · move up/down · relax to finish';
     }
   }
   const api={GestureEngine,describe};

@@ -134,7 +134,7 @@ async function startCamera(){
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
     status('Loading hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js?v=2');
+    worker=new Worker('camera/tracker-worker.js?v=3');
     const initialized=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
@@ -163,7 +163,7 @@ async function startCamera(){
       const copy=track.clone();try{worker.postMessage({type:'track',track:copy},[copy]);transport='track';}catch{copy.stop();startFallback();}
     }else startFallback();
     starting=false;cameraOn=true;$('cameraPlaceholder').hidden=true;$('liveBadge').hidden=false;
-    setControls(true);status('Controls active. Keep your hands visible and relax them between gestures.');
+    setControls(true);status('Controls active. Show one or two fingers, pause briefly, then make a small movement. Thumbs-up plays or pauses.');
   }catch(error){
     if(generation!==cameraGeneration)return;
     stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your Chromebook camera.':'Could not start the camera: '+error.message,true);

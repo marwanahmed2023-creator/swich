@@ -14,11 +14,14 @@ the video and click Enable camera. Allow Camera access for the Swich site.
 Keep the controller tab open while watching the selected video. Use Pause
 controls to suspend gestures, or Stop camera to stop camera capture.
 
-Index-finger pinch and quick release: play/pause.
-Two raised fingers, swipe left/right: back/forward 10 seconds.
-Thumb + middle-finger pinch, move up/down: video volume.
-Index-finger pinch, hold and move sideways: timeline; release to commit.
-Both hands pinched, spread/bring together: YouTube page zoom.
+Thumbs-up held briefly: play/pause once, then relax.
+One index finger left/right: back/forward 10 seconds once, then relax.
+One index finger up/down: video volume.
+Index + middle fingers left/right: timeline; bend them in view to commit.
+Index + middle fingers up/down: page zoom in/out.
+Raise the finger(s), pause briefly, then move a small amount.
+The first direction selects the action. Relax between gestures.
+No pinching or two-hand gestures are needed.
 
 The first launch loads MediaPipe hand-tracking files from the internet.
 The camera page reports if the browser needs its window visible.
