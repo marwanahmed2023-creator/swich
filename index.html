@@ -143,17 +143,17 @@
 
         function navigateToCustomUrl(inputId) {
             let userUrl = document.getElementById(inputId).value.trim();
-            
-            // If the box is completely empty, do absolutely nothing (ignores the gesture)
             if (!userUrl) return;
 
-            // Automatically clean up url formatting if needed
             if (!userUrl.startsWith("http://") && !userUrl.startsWith("https://")) {
                 userUrl = "https://" + userUrl;
             }
 
-            // Immediately redirect the tab straight to the custom website link
-            window.location.href = userUrl;
+            // FIXED WINDOW RULES: Spawns the new tab and immediately pushes it into visual focus
+            let newTab = window.open(userUrl, "_blank");
+            if (newTab) {
+                newTab.focus();
+            }
         }
 
         function activateCooldown() {
