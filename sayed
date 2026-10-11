@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Universal URL Command Hub</title>
+    <style>
+        body, html { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f4f6f9; width: 100%; height: 100%; overflow: hidden; }
+        .dashboard { padding: 30px; text-align: center; box-sizing: border-box; height: 100%; overflow-y: auto; }
+        .card { background: white; max-width: 580px; margin: 0 auto 20px auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: left; }
+        h2, h3 { text-align: center; margin-top: 0; color: #202124; }
+        button { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 15px; }
+        button:hover { background: #1557b0; }
+        .config-row { display: flex; flex-direction: column; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid #f1f3f4; }
+        .controls { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
+        label { font-weight: bold; color: #5f6368; font-size: 14px; min-width: 180px; display: inline-block; }
+        input[type="text"] { padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; flex: 1; box-sizing: border-box; }
+        #status { font-weight: bold; text-align: center; padding: 10px; background: #e8eaed; border-radius: 6px; margin-bottom: 15px; }
+        .live-data { font-family: monospace; font-size: 12px; color: #70757a; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <div class="card">
+            <h2>🎛️ URL Command Center</h2>
+            <button onclick="initBluetooth()">🔌 Connect Station via Bluetooth</button>
+            <div id="status">Status: Disconnected</div>
+            <div class="live-data" id="liveStream">Raw Telemetry - A: 0 | B: 0</div>
+        </div>
+
+        <div class="card">
+            <h3>⚙️ Type Destination URLs</h3>
+            <p style="color:#70757a; font-size:13px; margin-top:-10px;">Type any web link next to the actions. Leave a box blank to disable it.</p>
+            
+            <div class="config-row">
+                <div class="controls">
+                    <label>👋 Fast Wave (Under 50 Frames):</label>
+                    <input type="text" id="urlWave" placeholder="e.g., google.com">
+                </div>
+            </div>
+
+            <div class="config-row">
+                <div class="controls">
+                    <label>☝️ Long Hold / Touch (50+ Frames):</label>
+                    <input type="text" id="urlHold" placeholder="e.g., youtube.com">
+                </div>
+            </div>
+
+            <div class="config-row">
+                <div class="controls">
+                    <label>🔴 Physical Button Press:</label>
+                    <input type="text" id="urlButton" placeholder="e.g., netflix.com">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let bleDevice = null;
+        let bleCharacteristic = null;
+        let readBuffer = "";
+
+        let readings = [];
+        const SAMPLE_SIZE = 30;
+        let cooldown = false;
+        
+        let activeGestureFrames = 0;
+        let isHandPresent = false;
+
+        const HM10_SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+        const HM10_CHAR_UUID    = "0000ffe1-0000-1000-8000-00805f9b34fb";
+
+        async function initBluetooth() {
+            const statusDiv = document.getElementById('status');
+            try {
+                statusDiv.innerText = "Connecting...";
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [HM10_SERVICE_UUID] }]
+                });
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService(HM10_SERVICE_UUID);
+                bleCharacteristic = await service.getCharacteristic(HM10_CHAR_UUID);
+                
+                await bleCharacteristic.startNotifications();
+                bleCharacteristic.addEventListener('characteristicvaluechanged', processRawStream);
+                statusDiv.innerText = "Connected & 50+ Precision Armed!";
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = "Connection Failed.";
+            }
+        }
+
+        function processRawStream(event) {
+            const decoder = new TextDecoder();
+            readBuffer += decoder.decode(event.target.value);
+
+            let lines = readBuffer.split('\n');
+            readBuffer = lines.pop();
+
+            for (let line of lines) {
+                if (line.includes("A:") && line.includes(",B:")) {
+                    document.getElementById("liveStream").innerText = "Raw Telemetry - " + line.trim();
+                    
+                    let parts = line.split(',');
+                    let antennaVal = parseInt(parts[0].split(':')[1]);
+                    let buttonState = parseInt(parts[1].split(':')[1]);
+
+                    analyzeHardwareData(antennaVal, buttonState);
+                }
+            }
+        }
+
+        function analyzeHardwareData(antenna, button) {
+            if (button === 1 && !cooldown) {
+                navigateToCustomUrl("urlButton");
+                activateCooldown();
+                return;
+            }
+
+            readings.push(antenna);
+            if (readings.length > SAMPLE_SIZE) readings.shift();
+            
+            let sum = readings.reduce((a, b) => a + b, 0);
+            let average = sum / readings.length;
+            
+            // UPGRADED TUNING: Raised from 60 to 100 for stronger signal filtering
+            let deviation = Math.abs(antenna - average);
+
+            if (deviation > 100) {
+                isHandPresent = true;
+                activeGestureFrames++; 
+            } else {
+                if (isHandPresent && !cooldown) {
+                    // EXACT CUSTOM SPECIFICATIONS:
+                    if (activeGestureFrames >= 50) {
+                        // Long Hold / Touch (Triggered if held for 50 frames or more)
+                        navigateToCustomUrl("urlHold");
+                    } else if (activeGestureFrames >= 2) {
+                        // Fast Wave (Triggered if movement lasted fewer than 50 frames)
+                        navigateToCustomUrl("urlWave");
+                    }
+                    activateCooldown();
+                }
+                isHandPresent = false;
+                activeGestureFrames = 0;
+            }
+        }
+
+        function navigateToCustomUrl(inputId) {
+            let userUrl = document.getElementById(inputId).value.trim();
+            if (!userUrl) return;
+
+            if (!userUrl.startsWith("http://") && !userUrl.startsWith("https://")) {
+                userUrl = "https://" + userUrl;
+            }
+
+            let newTab = window.open(userUrl, "_blank");
+            if (newTab) {
+                newTab.focus();
+            }
+        }
+
+        function activateCooldown() {
+            cooldown = true;
+            isHandPresent = false;
+            activeGestureFrames = 0;
+            setTimeout(() => { cooldown = false; }, 2500); 
+        }
+    </script>
+</body>
+</html>
