@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Wave & touch · Arduino signal test</title>
+<title>Wave & touch · ADCTouch</title>
 <style>
   :root{color-scheme:light;--ink:#183034;--muted:#5b7175;--line:#dbe5e5;--accent:#087c72;--paper:#fff;--bg:#f2f6f5}
   *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,sans-serif}
@@ -21,7 +21,7 @@
 </head>
 <body>
 <main>
-  <header><div class="eyebrow">Arduino Nano · HM-10</div><h1>Wave & touch</h1><p class="muted">See what your wire actually detects. Record a few tests, then compare the results.</p></header>
+  <header><div class="eyebrow">Arduino Nano · HM-10 · ADCTouch</div><h1>Wave & touch</h1><p class="muted">See what your wire actually detects. Record a few tests, then compare the results.</p></header>
   <section aria-label="Bluetooth connection">
     <div class="row spread"><div class="grow"><div id="status" role="status" aria-live="polite">Disconnected</div><p class="connection-note muted">Open this page on your GitHub Pages site in Chrome.</p></div><button id="connectBtn">Connect Bluetooth</button><button id="disconnectBtn" class="secondary" disabled>Disconnect</button></div>
     <label class="check"><input id="showAll" type="checkbox"> Show all Bluetooth devices if the HM-10 is missing from the list</label>
@@ -32,7 +32,7 @@
     <div class="caption"><span>Last 10 seconds · fixed scale 0–1023</span><span id="rangeLabel">No readings yet</span></div>
   </section>
   <section aria-labelledby="testTitle">
-    <div class="row spread"><h2 id="testTitle">1. Record your readings</h2><span class="badge">Testing mode</span></div>
+    <div class="row spread"><h2 id="testTitle">1. Record your readings</h2><span class="badge">ADCTouch · wave +3 · touch +200</span></div>
     <p class="muted small">Each button starts a 2-second countdown, then records for 5 seconds. Repeat the wave and touch tests a few times. Link actions pause during recording.</p>
     <div class="test-buttons">
       <button class="secondary record" data-label="Hand away" disabled>Hand away<small>Keep your hand away</small></button>
@@ -47,18 +47,18 @@
     <div class="row actions"><button id="copyBtn" disabled>Copy results</button><button id="downloadBtn" class="secondary" disabled>Download readings</button><button id="clearBtn" class="secondary" disabled>Clear test results</button><span id="copyStatus" role="status"></span></div>
   </section>
   <details>
-    <summary>Try link actions · experimental</summary>
-    <p class="notice">A bare wire can give similar readings for a wave and a touch. These are guesses based on signal size, not confirmed touch detection. Record your tests first.</p>
+    <summary>Try link actions · ADCTouch</summary>
+    <p class="notice">Your ADCTouch tests showed a small rise for a wave and a much larger rise for a touch. Wave detection is sensitive to drift: set the baseline with your hand away before arming.</p>
     <p class="small muted">Keep your hand away for at least 2 seconds, then set a baseline. It stays fixed during gestures. The page chooses one action after the signal returns near that baseline.</p>
     <button id="calibrateBtn" class="secondary" disabled>Set hand-away baseline</button><p id="baselineStatus" class="small muted">Baseline not set.</p>
     <div class="grid"><div><label class="field" for="waveUrl">Wave link</label><input id="waveUrl" type="text" placeholder="https://example.com" autocomplete="off"></div><div><label class="field" for="touchUrl">Touch link</label><input id="touchUrl" type="text" placeholder="https://example.com" autocomplete="off"></div></div>
-    <div class="grid"><div><label class="field" for="waveThreshold">Minimum change for a wave</label><input id="waveThreshold" type="number" min="5" max="1022" value="35"></div><div><label class="field" for="touchThreshold">Minimum change for a touch</label><input id="touchThreshold" type="number" min="6" max="1023" value="180"></div></div>
-    <p class="small muted">Changes are measured from the baseline. The starting thresholds are only test values. A gesture reaching the touch threshold takes priority over the wave action.</p>
+    <div class="grid"><div><label class="field" for="waveThreshold">Minimum rise for a wave</label><input id="waveThreshold" type="number" min="1" max="1022" value="3"></div><div><label class="field" for="touchThreshold">Minimum rise for a touch</label><input id="touchThreshold" type="number" min="2" max="1023" value="200"></div></div>
+    <p class="small muted">Rises are measured from your hand-away baseline. Start with +3 for wave and +200 for touch. Touch takes priority; one link opens after the signal returns near baseline. Keep this page visible while using gestures.</p>
     <div class="row"><button id="armBtn" disabled>Arm link actions</button><button id="stopBtn" class="secondary" disabled>Stop link actions</button></div>
     <p class="small muted">Arming opens one output tab. Detected gestures reuse that tab. Keep this controller page open and visible. If the destination closes the connection to its tab, arm again.</p>
     <div id="eventStatus" role="status">Link actions are off.</div>
   </details>
-  <footer>Uses the existing Arduino stream, such as <code>A:512,B:0</code>. No new Arduino upload is needed if your current sketch sends that stream. This page only reads sensor messages.</footer>
+  <footer>Keep the ADCTouch sketch on your Nano. This page reads its <code>A:512,B:0</code> messages. The numbers measure capacitance response; they are not ordinary voltage readings.</footer>
 </main>
 <script>
 'use strict';
@@ -178,7 +178,7 @@ function renderResults(){
     $('resultsBody').appendChild(tr);
   }
   if(!runs.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='Your recorded tests will appear here.';td.className='muted';tr.appendChild(td);$('resultsBody').appendChild(tr);}
-  const lines=['Arduino Nano + HM-10; bare wire on A0.','Five seconds per test. Values are raw A0 readings (0–1023).',''];
+  const lines=['Arduino Nano + HM-10; bare wire on A0.','Five seconds per test. Values are ADCTouch measurements on A0 (0–1023).',''];
   runs.forEach((r,i)=>{
     lines.push((i+1)+'. '+r.label+': min '+r.stats.min+', max '+r.stats.max+', average '+r.stats.mean.toFixed(1)+', standard deviation '+r.stats.sd.toFixed(1)+', '+r.data.length+' readings.');
     const seconds=Array.from({length:5},(_,second)=>{const values=r.data.filter(s=>s.ms>=second*1000&&s.ms<(second+1)*1000).map(s=>s.value);return values.length?(values.reduce((a,b)=>a+b,0)/values.length).toFixed(0):'no data';});
@@ -214,7 +214,7 @@ function arm(){
   if(!fresh()||capture||baseline===null||armed)return;
   try{
     const wave=Number($('waveThreshold').value),touch=Number($('touchThreshold').value);
-    if(!Number.isFinite(wave)||!Number.isFinite(touch)||wave<5||wave>=touch||touch>1023)throw new Error('Use thresholds between 5 and 1023, with the touch threshold higher than the wave threshold.');
+    if(!Number.isFinite(wave)||!Number.isFinite(touch)||wave<1||wave>=touch||touch>1023)throw new Error('Use thresholds between 1 and 1023, with the touch threshold higher than the wave threshold.');
     const waveUrl=safeUrl($('waveUrl').value),touchUrl=safeUrl($('touchUrl').value);
     if(!waveUrl||!touchUrl)throw new Error('Enter both the wave link and the touch link.');
     // Open the target during this real button click; sensor notifications reuse it.
@@ -231,7 +231,8 @@ function arm(){
 }
 function detect(value,now){
   if(!armed||!armedSettings||baseline===null||document.hidden)return;
-  const change=Math.abs(value-baseline),wave=armedSettings.wave,release=wave*.45;
+  // ADCTouch readings rise with added capacitance; ignore downward drift.
+  const change=Math.max(0,value-baseline),wave=armedSettings.wave,release=wave*.45;
   const d=detector;
   if(d.phase==='waiting'){
     if(change<=release){d.quietSince??=now;if(now-d.quietSince>=300&&now>=d.until)d.phase='ready';}else d.quietSince=null;
@@ -249,7 +250,6 @@ function detect(value,now){
   }
   if(d.phase==='active'){
     d.peak=Math.max(d.peak,change);
-    if(now-d.startAt>8000){detector=newDetector();$('eventStatus').textContent='Signal did not return within 8 seconds. No link opened. Keep your hand away; recalibrate if needed.';return;}
     if(change<=release){
       d.releaseSince??=now;d.releaseCount++;
       if(now-d.releaseSince>=240&&d.releaseCount>=3){
