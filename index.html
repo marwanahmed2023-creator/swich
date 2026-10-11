@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Customizable Command Hub</title>
+    <style>
+        body, html { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f4f6f9; width: 100%; height: 100%; overflow: hidden; }
+        .dashboard { padding: 30px; text-align: center; box-sizing: border-box; height: 100%; overflow-y: auto; }
+        .card { background: white; max-width: 550px; margin: 0 auto 20px auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: left; }
+        h2, h3 { text-align: center; margin-top: 0; color: #202124; }
+        button { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 15px; }
+        button:hover { background: #1557b0; }
+        .config-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f3f4; }
+        label { font-weight: bold; color: #5f6368; font-size: 14px; }
+        select { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 200px; }
+        #status { font-weight: bold; text-align: center; padding: 10px; background: #e8eaed; border-radius: 6px; margin-bottom: 15px; }
+        .live-data { font-family: monospace; font-size: 12px; color: #70757a; text-align: center; }
+        
+        /* Overlays */
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; box-sizing: border-box; padding: 40px; }
+        #fakeDoc { background: white; font-family: Arial, sans-serif; text-align: left; }
+        .docs-title { font-size: 22px; color: #202124; border-bottom: 1px solid #dadce0; padding-bottom: 10px; margin-bottom: 20px; }
+        #shutdownScreen { background: #000; color: #34a853; font-family: 'Courier New', monospace; text-align: center; padding-top: 15%; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <div class="card">
+            <h2>🎛️ Custom Command Center</h2>
+            <button onclick="initBluetooth()">🔌 Connect Station via Bluetooth</button>
+            <div id="status">Status: Disconnected</div>
+            <div class="live-data" id="liveStream">Raw Telemetry - A: 0 | B: 0</div>
+        </div>
+
+        <div class="card">
+            <h3>⚙️ Map Your Gestures</h3>
+            <p style="color:#70757a; font-size:13px; margin-top:-10px;">Change these mappings anytime. No code flashing required!</p>
+            
+            <div class="config-row">
+                <label>👋 Fast Wave (Proximity):</label>
+                <select id="actionWave">
+                    <option value="none">Do Nothing</option>
+                    <option value="hide" selected>Toggle Fake Homework</option>
+                    <option value="youtube">Open YouTube</option>
+                    <option value="lock">Simulate Shutdown</option>
+                </select>
+            </div>
+
+            <div class="config-row">
+                <label>☝️ Long Hold / Touch:</label>
+                <select id="actionHold">
+                    <option value="none">Do Nothing</option>
+                    <option value="hide">Toggle Fake Homework</option>
+                    <option value="youtube" selected>Open YouTube</option>
+                    <option value="lock">Simulate Shutdown</option>
+                </select>
+            </div>
+
+            <div class="config-row">
+                <label>🔴 Physical Button Press:</label>
+                <select id="actionButton">
+                    <option value="none">Do Nothing</option>
+                    <option value="hide">Toggle Fake Homework</option>
+                    <option value="youtube">Open YouTube</option>
+                    <option value="lock" selected>Simulate Shutdown</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mode 1: Fake Document -->
+    <div id="fakeDoc" class="overlay">
+        <div class="docs-title">📄 Assignment_Draft_Final.docx</div>
+        <p><strong>Abstract:</strong> The testing matrix analyzed structural load parameters across variable microchip arrays. Telemetry indicators pointed to consistent operational throughput when baseline metrics remained stable.</p>
+    </div>
+
+    <!-- Mode 2: Fake Shutdown Lockout -->
+    <div id="shutdownScreen" class="overlay">
+        <div style="font-size: 28px; margin-bottom: 20px;">⚠️ EMERGENCY TERMINAL DISCONNECT // Cache Flushed</div>
+        <div style="font-size: 16px; color:#5f6368;">System interface suspended. Close tab to reset client hub.</div>
+    </div>
+
+    <script>
+        let bleDevice = null;
+        let bleCharacteristic = null;
+        let readBuffer = "";
+        let isHidden = false;
+
+        let readings = [];
+        const SAMPLE_SIZE = 30;
+        let cooldown = false;
+        let hoverCounter = 0;
+
+        const HM10_SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+        const HM10_CHAR_UUID    = "0000ffe1-0000-1000-8000-00805f9b34fb";
+
+        async function initBluetooth() {
+            const statusDiv = document.getElementById('status');
+            try {
+                statusDiv.innerText = "Connecting...";
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [HM10_SERVICE_UUID] }]
+                });
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService(HM10_SERVICE_UUID);
+                bleCharacteristic = await service.getCharacteristic(HM10_CHAR_UUID);
+                
+                await bleCharacteristic.startNotifications();
+                bleCharacteristic.addEventListener('characteristicvaluechanged', processRawStream);
+                statusDiv.innerText = "Connected & Fully Custom Armed!";
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = "Connection Failed.";
+            }
+        }
+
+        function processRawStream(event) {
+            const decoder = new TextDecoder();
+            readBuffer += decoder.decode(event.target.value);
+
+            let lines = readBuffer.split('\n');
+            readBuffer = lines.pop();
+
+            for (let line of lines) {
+                if (line.includes("A:") && line.includes(",B:")) {
+                    document.getElementById("liveStream").innerText = "Raw Telemetry - " + line.trim();
+                    
+                    let parts = line.split(',');
+                    let antennaVal = parseInt(parts[0].split(':')[1]);
+                    let buttonState = parseInt(parts[1].split(':')[1]);
+
+                    analyzeHardwareData(antennaVal, buttonState);
+                }
+            }
+        }
+
+        function analyzeHardwareData(antenna, button) {
+            if (button === 1 && !cooldown) {
+                triggerMappedAction("actionButton");
+                activateCooldown();
+                return;
+            }
+
+            readings.push(antenna);
+            if (readings.length > SAMPLE_SIZE) readings.shift();
+            
+            let sum = readings.reduce((a, b) => a + b, 0);
+            let average = sum / readings.length;
+            let deviation = Math.abs(antenna - average);
+
+            if (deviation > 60 && !cooldown) {
+                hoverCounter++;
+                if (hoverCounter > 15) {
+                    triggerMappedAction("actionHold");
+                    hoverCounter = 0;
+                    activateCooldown();
+                }
+            } else {
+                if (hoverCounter > 1 && hoverCounter <= 15) {
+                    triggerMappedAction("actionWave");
+                    activateCooldown();
+                }
+                hoverCounter = 0;
+            }
+        }
+
+        function triggerMappedAction(dropdownId) {
+            const selectedAction = document.getElementById(dropdownId).value;
+            
+            if (selectedAction === "hide") {
+                const element = document.getElementById("fakeDoc");
+                isHidden = !isHidden;
+                element.style.display = isHidden ? "block" : "none";
+            } else if (selectedAction === "youtube") {
+                window.open("https://youtube.com", "_blank");
+            } else if (selectedAction === "lock") {
+                document.getElementById("shutdownScreen").style.display = "block";
+            }
+        }
+
+        function activateCooldown() {
+            cooldown = true;
+            setTimeout(() => { cooldown = false; }, 2000);
+        }
+    </script>
+</body>
+</html>
