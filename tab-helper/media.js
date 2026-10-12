@@ -2,11 +2,11 @@
 (()=>{
   if(globalThis.__swichMediaInstalled)return;
   globalThis.__swichMediaInstalled=true;
-  let transaction=null,hideTimer=null,hud=null;
+  let transaction=null,hideTimer=null,hud=null,lastAudio=null;
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const time=n=>{n=Math.max(0,Math.round(n||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');};
   function video(){
-    const videos=[...document.querySelectorAll('video')].filter(v=>v.isConnected&&v.readyState>0);
+    const videos=[...document.querySelectorAll('video')].filter(v=>v.isConnected&&v.readyState>0&&v.id!=='cameraVideo');
     if(videos.includes(document.pictureInPictureElement))return document.pictureInPictureElement;
     const full=document.fullscreenElement;
     const candidates=videos.map(v=>{
@@ -21,8 +21,11 @@
       const area=width*height;
       return area>0?{video:v,area,center:Math.abs((rect.top+rect.bottom)/2-innerHeight/2)}:null;
     }).filter(Boolean).sort((a,b)=>b.area-a.area||a.center-b.center);
-    if(!candidates.length)throw new Error('Bring a video into view and press Play once first. On Facebook, open the video or Reel you want to control.');
-    return candidates[0].video;
+    if(candidates.length)return candidates[0].video;
+    const audio=[...document.querySelectorAll('audio')].filter(a=>a.isConnected&&a.readyState>0);
+    const chosen=audio.find(a=>!a.paused&&!a.ended)||(audio.includes(lastAudio)?lastAudio:null)||audio[0];
+    if(chosen){lastAudio=chosen;return chosen;}
+    throw new Error('Open a video or audio track and press Play once. For local files, use the Swich file player.');
   }
   function bounds(v){
     if(document.querySelector('.ad-showing'))throw new Error('Wait for the advertisement to finish before seeking.');
@@ -46,7 +49,23 @@
     hud._parts.fill.style.width=(clamp(fraction||0,0,1)*100)+'%';hud.style.display='block';
     clearTimeout(hideTimer);hideTimer=setTimeout(()=>hud.style.display='none',1800);
   }
-  function state(v){return {paused:v.paused,time:v.currentTime,duration:Number.isFinite(v.duration)?v.duration:null,volume:v.volume,muted:v.muted};}
+  function state(v){return {kind:v.tagName==='AUDIO'?'audio':'video',paused:v.paused,time:v.currentTime,duration:Number.isFinite(v.duration)?v.duration:null,volume:v.volume,muted:v.muted};}
+  globalThis.__swichMediaProbe=()=>{
+    try{const v=video(),r=v.getBoundingClientRect();return {state:state(v),rank:r.width*r.height};}catch{return {state:null};}
+  };
+  function scrollTarget(){
+    let el=document.elementFromPoint?.(innerWidth/2,innerHeight/2);
+    while(el&&el!==document.documentElement){
+      const style=getComputedStyle(el);
+      if(/auto|scroll/.test(style.overflowY)&&el.scrollHeight>el.clientHeight+2)return el;
+      el=el.parentElement;
+    }
+    return document.scrollingElement||document.documentElement;
+  }
+  function scrollPage(direction,target=scrollTarget(),amount=Math.max(200,innerHeight*.45)){
+    target.scrollBy({top:direction*amount,behavior:'instant'});
+    feedback(direction>0?'Scroll down':'Scroll up');
+  }
   function fresh(request){if(Number.isFinite(request.expiresAt)&&Date.now()>=request.expiresAt)throw new Error('That request expired. Relax your hand and try again.');}
   async function play(v,expiresAt=Date.now()+1800){
     let timer;
@@ -68,15 +87,23 @@
   function active(request,kind){
     const t=transaction;
     if(!t||t.key!==request.controllerId+':'+request.gestureId||t.kind!==kind)throw new Error('Start a new gesture.');
-    if(t.video!==video()||!t.video.isConnected||t.video.currentSrc!==t.src)throw new Error('The video changed. Start a new gesture.');
+    if(t.kind!=='scroll'&&(t.video!==video()||!t.video.isConnected||t.video.currentSrc!==t.src))throw new Error('The video changed. Start a new gesture.');
     t.deadline=Date.now()+2500;return t;
   }
   async function command(request){
     fresh(request);
     const action=request.action;
-    if(action==='cancel'){await end(false,request.expiresAt);return {ok:true};}
+    if(action==='cancel'){if(!transaction||transaction.owner===request.controllerId)await end(false,request.expiresAt);return {ok:true};}
+    if(action==='status')return {ok:true,page:true,...globalThis.__swichMediaProbe()};
+    if(transaction&&transaction.owner!==request.controllerId)throw new Error('Finish the other controller gesture first.');
+    if(action==='scroll'){await end(false,request.expiresAt);fresh(request);scrollPage(request.direction);return {ok:true,page:true};}
+    if(action==='scrollStart'){
+      await end(false,request.expiresAt);fresh(request);
+      transaction={kind:'scroll',owner:request.controllerId,key:request.controllerId+':'+request.gestureId,target:scrollTarget(),deadline:Date.now()+2500};return {ok:true,page:true};
+    }
+    if(action==='scrollMove'){const t=active(request,'scroll');scrollPage(Math.sign(request.delta),t.target,Math.abs(request.delta)*120);return {ok:true,page:true};}
+    if(action==='scrollEnd'){active(request,'scroll');transaction=null;return {ok:true,page:true};}
     const v=video();
-    if(action==='status')return {ok:true,state:state(v)};
     if(['toggle','play','pause'].includes(action)){
       // An explicit pause also cancels a timeline transaction without resuming it.
       if(action==='pause'&&transaction?.kind==='seek')transaction.wasPlaying=false;
@@ -88,7 +115,7 @@
       feedback((request.seconds>0?'Forward':'Back')+' 10 seconds');
     }else if(action==='seekStart'){
       await end(false,request.expiresAt);fresh(request);const [low,high]=bounds(v);
-      transaction={kind:'seek',key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.currentTime,target:v.currentTime,low,high,wasPlaying:!v.paused,deadline:Date.now()+2500};
+      transaction={kind:'seek',owner:request.controllerId,key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.currentTime,target:v.currentTime,low,high,wasPlaying:!v.paused,deadline:Date.now()+2500};
       v.pause();feedback('Drag timeline · '+time(v.currentTime),(v.currentTime-low)/(high-low));
     }else if(action==='seekMove'){
       const t=active(request,'seek');t.target=clamp(t.base+request.delta*(t.high-t.low),t.low,t.high);
@@ -96,7 +123,7 @@
     }else if(action==='seekEnd'){
       active(request,'seek');await end(request.commit===true,request.expiresAt);
     }else if(action==='volumeStart'){
-      await end(false,request.expiresAt);fresh(request);transaction={kind:'volume',key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.muted?0:v.volume,deadline:Date.now()+2500};
+      await end(false,request.expiresAt);fresh(request);transaction={kind:'volume',owner:request.controllerId,key:request.controllerId+':'+request.gestureId,video:v,src:v.currentSrc,base:v.muted?0:v.volume,deadline:Date.now()+2500};
       feedback('Volume '+Math.round(transaction.base*100)+'%',transaction.base);
     }else if(action==='volumeMove'){
       const t=active(request,'volume');v.volume=clamp(t.base+request.delta,0,1);v.muted=false;

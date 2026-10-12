@@ -23,11 +23,11 @@
     if(data.type==='ping'){
       send({type:'SWICH_PING'},response=>post({type:'ready',available:response.ok===true,version:response.version,capabilities:response.capabilities||[]}));return;
     }
-    if(!['open','media-list','media-command'].includes(data.type)||typeof data.id!=='string'||data.id.length>100)return;
+    if(!['open','media-list','media-command','focus-controller'].includes(data.type)||typeof data.id!=='string'||data.id.length>100)return;
     if(completed.has(data.id)){post(completed.get(data.id));return;}
     if(pending.has(data.id))return;
     pending.add(data.id);
-    const request=data.type==='open'?{type:'SWICH_OPEN',url:data.url}:data.type==='media-list'?{type:'SWICH_MEDIA_LIST'}:{type:'SWICH_MEDIA_COMMAND',tabId:data.tabId,command:data.command};
+    const request=data.type==='focus-controller'?{type:'SWICH_FOCUS_CONTROLLER'}:data.type==='open'?{type:'SWICH_OPEN',url:data.url}:data.type==='media-list'?{type:'SWICH_MEDIA_LIST'}:{type:'SWICH_MEDIA_COMMAND',tabId:data.tabId,command:data.command,source:data.source};
     send(request,response=>{
       pending.delete(data.id);
       const result={type:'result',id:data.id,...response};

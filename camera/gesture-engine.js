@@ -18,7 +18,8 @@
     const count=fingers.filter(Boolean).length;
     const thumbsUp=count===0&&(points[2].y-points[4].y)*.75>width*.65&&(points[3].y-points[4].y)*.75>width*.12;
     const thumbsDown=count===0&&(points[4].y-points[2].y)*.75>width*.65&&(points[4].y-points[3].y)*.75>width*.12;
-    const pose=thumbsUp?'like':thumbsDown?'dislike':fingers[0]&&count===1?'one':fingers[0]&&fingers[1]&&count===2?'two':'rest';
+    const tilted=Math.abs(points[8].x-points[5].x)>Math.abs((points[8].y-points[5].y)*.75)*.45;
+    const pose=thumbsUp?'like':thumbsDown?'dislike':fingers[0]&&count===1?(tilted?'flick':'one'):fingers[0]&&fingers[1]&&count===2?'two':'rest';
     const tip=pose==='two'?{x:(points[8].x+points[12].x)/2,y:(points[8].y+points[12].y)/2}:points[8];
     return {label,pose,count,x:1-tip.x,y:tip.y*.75};
   }
@@ -78,7 +79,7 @@
         this.clearRest();
         this.mode={pose:h.pose,id:'g'+(++this.serial),label:h.label,at:now,frames:1,ready:false,started:false,kind:null,
           x:h.x,y:h.y,baseX:h.x,baseY:h.y,lastSent:0,lastValue:null,exitAt:null,exitFrames:0};
-        return this.message=h.pose==='like'?'Thumbs-up · hold to play':h.pose==='dislike'?'Thumbs-down · hold to pause':h.pose==='one'?'One finger · hold briefly, then move':'Two fingers · hold briefly, then move sideways';
+        return this.message=h.pose==='like'?'Thumbs-up · hold to play':h.pose==='dislike'?'Thumbs-down · hold to pause':h.pose==='flick'?'Angled finger · flick up/down':h.pose==='one'?'One finger · hold briefly, then move':'Two fingers · hold briefly, then move sideways';
       }
       if(m.exitAt!==null&&(['like','dislike'].includes(m.pose)||!m.ready)){m.at=now;m.frames=0;}
       m.exitAt=null;m.exitFrames=0;m.frames++;
@@ -88,12 +89,22 @@
         return this.message=m.pose==='like'?'Thumbs-up · hold to play':'Thumbs-down · hold to pause';
       }
       if(!m.ready){
-        if(now-m.at>=180&&m.frames>=2){m.ready=true;m.baseX=m.x=h.x;m.baseY=m.y=h.y;}
-        return this.message=m.pose==='one'?'One finger · left/right: 10 seconds · up/down: volume':'Two fingers · move left/right for the timeline';
+        if(now-m.at>=180&&m.frames>=2){m.ready=true;m.baseX=m.x=h.x;m.baseY=m.y=h.y;m.trail=[{at:now,x:h.x,y:h.y}];}
+        return this.message=m.pose==='flick'?'Angled finger · flick up/down to scroll':m.pose==='one'?'One finger · left/right: 10 seconds · up/down: volume':'Two fingers · move left/right for the timeline';
       }
       const alpha=1-Math.exp(-Math.max(1,elapsed)/90);
       m.x+=(h.x-m.x)*alpha;m.y+=(h.y-m.y)*alpha;
       const dx=m.x-m.baseX,dy=m.y-m.baseY;
+      if(m.pose==='flick'){
+        m.trail.push({at:now,x:m.x,y:m.y});
+        while(m.trail.length>1&&now-m.trail[0].at>350)m.trail.shift();
+        const first=m.trail[0],fx=m.x-first.x,fy=m.y-first.y,dt=now-first.at;
+        if(dt>0&&Math.abs(fy)>=.035&&Math.abs(fy)>=Math.abs(fx)*.65&&Math.abs(fy)/dt>=.00013){
+          this.emit({action:'scroll',direction:fy>0?1:-1});this.mode=null;this.blocked=true;this.clearRest();
+          return this.message='Scroll '+(fy>0?'down':'up')+' · lower your finger';
+        }
+        return this.message='Angled finger · flick up/down to scroll';
+      }
       if(!m.kind){
         const ax=Math.abs(dx),ay=Math.abs(dy);
         if(Math.max(ax,ay)<.045||Math.max(ax,ay)<Math.min(ax,ay)*1.35)return this.message='Ready · make a small sideways or up/down movement';
@@ -109,7 +120,7 @@
       if(m.lastValue===null||(now-m.lastSent>=120&&(Math.abs(value-m.lastValue)>.004||now-m.lastSent>=800))){
         this.send(m.kind+'Move',now,{delta:value});m.lastValue=value;
       }
-      return this.message=m.kind==='volume'?'Volume · move up/down · relax to finish':'Timeline · move left/right · bend your fingers to set';
+      return this.message=m.kind==='volume'?'Volume · move up/down · lower your hand to finish':'Timeline · move left/right · bend your fingers to set';
     }
   }
   const api={GestureEngine,describe};

@@ -1,19 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Swich Tab Helper",
-  "version": "1.3.0",
-  "description": "Camera controls for YouTube and Facebook videos, plus automatic tab switching for Swich gesture links.",
-  "minimum_chrome_version": "102",
+  "version": "1.4.0",
+  "description": "Swich camera and touch-wire controls for webpage video, audio, scrolling, and local files in the Swich player.",
+  "minimum_chrome_version": "106",
   "background": {
     "service_worker": "background.js"
   },
   "host_permissions": [
-    "https://www.youtube.com/*",
-    "https://m.youtube.com/*",
-    "https://facebook.com/*",
-    "https://www.facebook.com/*",
-    "https://m.facebook.com/*",
-    "https://web.facebook.com/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "content_scripts": [
     {
@@ -25,21 +21,10 @@
       ],
       "run_at": "document_start",
       "all_frames": false
-    },
-    {
-      "matches": [
-        "https://www.youtube.com/*",
-        "https://m.youtube.com/*",
-        "https://facebook.com/*",
-        "https://www.facebook.com/*",
-        "https://m.facebook.com/*",
-        "https://web.facebook.com/*"
-      ],
-      "js": [
-        "media.js"
-      ],
-      "run_at": "document_idle",
-      "all_frames": false
     }
+  ],
+  "permissions": [
+    "storage",
+    "scripting"
   ]
 }

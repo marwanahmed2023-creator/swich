@@ -95,7 +95,7 @@ function emit(text){const bytes=new TextEncoder().encode(text);characteristic.va
  // Run the actual extension worker, content bridge, and controller together
  // against mocked Chrome APIs. No browser or physical Bluetooth is implied.
  const manifest=JSON.parse(fs.readFileSync('tab-helper/manifest.json','utf8'));
- assert.equal(manifest.manifest_version,3);assert.equal(manifest.permissions,undefined);
+ assert.equal(manifest.manifest_version,3);assert.deepEqual(manifest.permissions,['storage','scripting']);
  assert.deepEqual(manifest.content_scripts[0].matches,['https://marwanahmed2023-creator.github.io/swich/*']);
  let workerListener,failFocus=false;
  const created=[],windowChanges=[],posted=[];

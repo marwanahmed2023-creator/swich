@@ -11,7 +11,7 @@ function fakeClock(){
 async function backgroundRecovery(){
  const clock=fakeClock(),calls=[];let listener,mode='hang',lateReply,lateGet;
  const tab={id:2,url:'https://www.youtube.com/watch?v=a',incognito:false};
- const chrome={runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{
+ const chrome={windows:{},storage:{session:{async get(){return {};},async set(){}}},scripting:{async executeScript(req){return req.files?[]:[{frameId:0,documentId:'doc',result:{state:{paused:false},rank:1}}];}},runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{
   get(){if(mode==='get')return new Promise(resolve=>lateGet=()=>resolve(tab));return Promise.resolve(tab);},
   sendMessage(id,msg){calls.push(msg);if(mode==='hang'&&msg.action!=='status')return new Promise(resolve=>lateReply=()=>resolve({ok:true}));return Promise.resolve({ok:true,state:{paused:false}});}
  }};

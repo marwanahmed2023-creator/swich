@@ -1,64 +1,52 @@
-Swich Tab Helper v1.3.0
+Swich Tab Helper v1.4.0
 
-NEW: Facebook video and Reel controls with the same gestures as YouTube.
-Requests now time out cleanly instead of blocking later controls.
-Setup: https://marwanahmed2023-creator.github.io/swich/camera-setup.html
 Controller: https://marwanahmed2023-creator.github.io/swich/camera.html
+Setup: https://marwanahmed2023-creator.github.io/swich/camera-setup.html
+Local media: https://marwanahmed2023-creator.github.io/swich/player.html
 
-To update an existing installation, replace the files in your original
-swich-tab-helper folder with this download's files. Then open
-chrome://extensions and click Reload on Swich Tab Helper. Allow YouTube and Facebook
-access if asked. Refresh your video and Swich tabs afterward.
+UPDATE: Extract this ZIP, replace the files in your existing extension
+folder, then reload Swich Tab Helper in chrome://extensions. Allow updated
+website permissions if asked. Refresh your Swich and media tabs.
+NEW INSTALL: Turn on Developer mode in chrome://extensions. Load unpacked:
+select the folder containing manifest.json. Keep that folder in My files.
+Linux and Chromebook system Developer Mode are not needed.
 
-Open a YouTube or Facebook video and press Play once. In the camera controller, select
-the video and click Enable camera. Allow Camera access for the Swich site.
-Keep the controller tab open while watching the selected video. Use Pause
-controls to suspend gestures, or Stop camera to stop camera capture.
+Leave "Follow the tab I use" selected to control your current Chrome page.
+Returning to the controller keeps your last webpage as the target.
+Start camera or connect Bluetooth: that input becomes active immediately.
+Stop camera / Disconnect wire stop that input. There is no mute gesture.
 
-Thumbs-up held briefly: play/resume, then relax.
-Thumbs-down held briefly: pause, then relax.
-One index finger left/right: back/forward 10 seconds once, then relax.
-One index finger up/down: video volume.
-Index + middle fingers left/right: timeline; bend them in view to commit.
-Raise the finger(s), pause briefly, then move a small amount.
-The first direction selects the action. Relax between gestures.
-No pinching or two-hand gestures are needed.
-Relax means lower your hand or stop showing the gesture.
-On Facebook, open a video or Reel and keep it in view. The helper controls
-the largest visible video. Thumbs-up plays; it does not like the post.
-Seeking needs a seekable timeline; some live videos may not offer one.
+CAMERA
+Slanted index finger: pause briefly, then flick up/down to scroll once.
+Lower or bend the finger between flicks. Use one hand and good lighting.
+Upright index finger up/down: volume. Sideways: skip back/forward 10s.
+Two fingers sideways: timeline; bend them in view to set the new position.
+Thumbs-up held briefly: play. Thumbs-down held briefly: pause.
 
-The first launch loads MediaPipe hand-tracking files from the internet.
-The camera page reports if the browser needs its window visible.
-These controls change the selected video, not the
-Chromebook system volume or desktop mouse.
+WIRE (existing Nano + HM-10, A0 ADCTouch sketch)
+Quick taps: 1 play/pause; 2 back 10s; 3 forward 10s; 4 open saved shortcuts.
+Keep gaps under 0.8 seconds and each group within 3 seconds.
+Hold the final touch for at least 0.7 seconds:
+Hold: volume up. Tap then hold: volume down.
+Two taps then hold: scroll down. Three taps then hold: scroll up.
+Release to stop. If readings stop, release the wire before trying again.
 
-Original Bluetooth link controls are also supported:
+OTHER MEDIA
+Open a video/audio track and press Play once in its page.
+Supports ordinary web video/audio and many embedded players. Some custom
+or protected players cannot be controlled. Seeking needs a seekable timeline.
+For local files/folders, use the Swich file player in a separate tab.
+Files stay on your device; Chrome must support their format and codec.
+Does not control native desktop apps, Chrome protected pages, or system volume.
+On feeds, controls select the largest visible video. Keep your video in view.
 
-One-time setup in Chrome on your Chromebook:
-1. Extract the downloaded ZIP into a permanent folder in My files.
-2. Open chrome://extensions in Chrome.
-3. Turn on Developer mode on that extensions page.
-   This is the extensions switch, not Chromebook system Developer Mode.
-4. Choose Load unpacked, then select the extracted swich-tab-helper folder
-   containing manifest.json. Keep that folder after installation.
-5. Refresh https://marwanahmed2023-creator.github.io/swich/
-6. Check that it says Automatic tab switching is on, then connect Bluetooth.
+PERMISSIONS
+Website access and scripting allow on-demand scrolling and player control
+across websites. Session storage remembers the last target tab. The helper
+reads tab titles and media state; it does not request browsing-history access.
+Only the Swich controller pages can send commands. Camera processing occurs
+on your device after the initial model download, not inside the extension.
 
-Leave the controller tab open while browsing. Each recognized gesture
-opens an active tab in your last-used normal Chrome window and brings that
-window forward. The Arduino code stays the same. Links remain on your device.
-
-The extension runs on the Swich website, YouTube, and Facebook. For camera controls
-it reads YouTube and Facebook tab titles and player state, and changes playback, volume,
-and seeking. Camera processing happens in the Swich page; camera
-images are not sent through the extension. The extension does not request
-access to every website or browsing history.
-
-If Load unpacked or Developer mode is blocked on a managed Chromebook,
-your administrator must permit extension installation. Do not change the
-Chromebook system Developer Mode or reset your device.
-
-Keep Chrome running and Bluetooth connected. If the controller stops
-receiving data, gestures wait for fresh readings and a new hand release.
-Locked or sleeping devices cannot respond to gestures.
+Keep the controller open, Chrome running, and the computer awake.
+Some Chrome versions require the camera window visible beside your media.
+The original Bluetooth link controller at /swich/ is still supported.
