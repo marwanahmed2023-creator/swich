@@ -17,6 +17,14 @@ Start camera or connect Bluetooth: that input becomes active immediately.
 Stop camera / Disconnect wire stop that input. There is no mute gesture.
 
 CAMERA
+Wink scrolling: your own left eye down, your own right eye up. Keep the
+other eye open; briefly wink for about 0.2-0.5 seconds, then reopen to scroll.
+Closing both eyes cancels a wink. Holding an eye shut never repeats.
+Keep one face visible. No hand is needed. The mirrored preview does not
+change which eye controls which direction. Face processing stays on-device.
+Helper v1.5 already supports this: refresh Swich and restart the camera.
+
+HAND SCROLLING (also available)
 Scroll down: point your index finger horizontally to either side, then flick
 it to about 45 degrees downward in one quick motion. Other fingers bent.
 Scroll up: fingers straight and together, then a small upward hand swipe
@@ -56,7 +64,7 @@ Website access and scripting allow on-demand scrolling and player control
 across websites. Session storage remembers the last target tab. The helper
 reads tab titles and media state; it does not request browsing-history access.
 Only the Swich controller pages can send commands. Camera processing occurs
-on your device after the initial model download, not inside the extension.
+on your device after the initial model downloads, not inside the extension.
 
 Keep the controller open, Chrome running, and the computer awake.
 Some Chrome versions require the camera window visible beside your media.

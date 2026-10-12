@@ -123,21 +123,26 @@ async function startCamera(){
     if(generation!==cameraGeneration){acquired.getTracks().forEach(t=>t.stop());return;}
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
-    status('Loading hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js?v=10');
+    status('Loading wink and hand tracking. The first load can take a moment…');
+    worker=new Worker('camera/tracker-worker.js?v=11');
     const initialized=new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>reject(new Error('Hand tracking could not load. Check your internet connection and try again.')),60000);
+      const timer=setTimeout(()=>reject(new Error('Face and hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
     });
     worker.onmessage=event=>{
       const data=event.data;
       if(data.type==='ready'){workerReady?.resolve(data);workerReady=null;}
       else if(data.type==='command')dispatchCommand(data);
-      else if(data.type==='tracking'){$('trackingHint').textContent=data.hint;draw(data.landmarks);}
+      else if(data.type==='tracking'){
+        $('trackingHint').textContent=data.hint;
+        const hint=data.winkHint||'Look toward the camera with both eyes open';
+        if($('winkHint').textContent!==hint)$('winkHint').textContent=hint;
+        draw(data.landmarks);
+      }
       else if(data.type==='frameDone')fallbackBusy=false;
       else if(data.type==='stopped'){worker?.terminate();worker=null;}
       else if(data.type==='ended'){stopCamera();status('The camera stream ended. Start the camera to reconnect.',true);}
-      else if(data.type==='error'){const error=new Error(data.message);if(workerReady)workerReady.reject(error);else{stopCamera();status('Hand tracking stopped: '+error.message,true);}}
+      else if(data.type==='error'){const error=new Error(data.message);if(workerReady)workerReady.reject(error);else{stopCamera();status('Camera tracking stopped: '+error.message,true);}}
     };
     worker.onerror=event=>{const error=new Error(event.message||'The camera worker could not start.');if(workerReady)workerReady.reject(error);else{stopCamera();status(error.message,true);}};
     worker.postMessage({type:'init'});const ready=await initialized;
@@ -152,7 +157,7 @@ async function startCamera(){
       const copy=track.clone();try{worker.postMessage({type:'track',track:copy},[copy]);transport='track';}catch{copy.stop();startFallback();}
     }else startFallback();
     starting=false;cameraOn=true;$('cameraPlaceholder').hidden=true;$('liveBadge').hidden=false;
-    setControls(true);status('Camera ready. Flick your index finger from horizontal to 45° down. For up, keep your fingers together and make a small upward swipe.');
+    setControls(true);status('Camera ready. Briefly wink your left eye for down or your right eye for up, then reopen. Both-eye blinks are ignored.');
   }catch(error){
     if(generation!==cameraGeneration)return;
     stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your Chromebook camera.':'Could not start the camera: '+error.message,true);
@@ -174,7 +179,7 @@ function stopCamera(){
   if(old){old.onmessage=event=>{if(event.data.type==='stopped')old.terminate();};try{old.postMessage({type:'stop'});}catch{}setTimeout(()=>old.terminate(),1000);}
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
   $('cameraVideo').srcObject=null;context.clearRect(0,0,640,480);$('cameraPlaceholder').hidden=false;$('liveBadge').hidden=true;
-  $('trackingHint').textContent='Camera off';status('Camera off.');updateControls();
+  $('trackingHint').textContent='Camera off';$('winkHint').textContent='Wink scrolling starts with the camera';status('Camera off.');updateControls();
 }
 
 async function showShortcuts(){

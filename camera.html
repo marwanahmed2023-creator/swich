@@ -9,7 +9,7 @@
 <body>
   <main>
     <nav><a class="brand" href="./">swich<span> / camera + wire</span></a><span id="extensionBadge" class="badge">Checking helper…</span></nav>
-    <header><p class="eyebrow">YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Control pages, videos, and audio with your camera or touch wire.<br>Follow the tab you use. Small movements are enough.</p></header>
+    <header><p class="eyebrow">YOUR WINKS. YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Control pages, videos, and audio with a wink, your hands, or a touch wire.<br>Follow the tab you use. Small movements are enough.</p></header>
     <section id="setupNotice" class="notice" hidden><strong>Update your Swich helper to version 1.5.</strong><p>This update adds quick scroll gestures and Shorts feed navigation, including while an ad is showing. After updating, refresh your controller and media tabs.</p><a href="camera-setup.html" target="_blank" rel="noopener">Download &amp; update instructions <span aria-hidden="true">↗</span></a></section>
     <div class="workspace">
       <section class="camera-card" aria-label="Camera preview">
@@ -18,7 +18,8 @@
           <div id="cameraPlaceholder" class="placeholder"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="6" y="14" width="36" height="26" rx="7" stroke="currentColor" stroke-width="2"/><path d="M15 14l4-6h10l4 6" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="27" r="7" stroke="currentColor" stroke-width="2"/></svg><strong>Your camera preview</strong><span>Start your camera whenever you’re ready.</span></div>
           <span id="liveBadge" class="preview-badge" hidden>Camera on</span>
         </div>
-        <div class="camera-footer"><span class="dot" id="trackingDot"></span><span id="trackingHint">Your hands stay in control.</span></div>
+        <div class="camera-footer"><span class="dot" id="trackingDot"></span><span id="trackingHint">Wink scrolling starts with the camera.</span></div>
+        <p id="winkHint" class="guide-note" role="status">Your left eye: down. Your right eye: up.</p>
       </section>
       <section class="controls-card" aria-label="Page and media controls">
         <p class="eyebrow">YOUR CURRENT PAGE</p>
@@ -36,8 +37,9 @@
       </section>
     </div>
     <section class="gestures" aria-label="Gesture guide">
-      <div class="section-line"><h2>Small gestures. More control.</h2><span>Repeat scrolling with your hand in view</span></div>
+      <div class="section-line"><h2>Small gestures. More control.</h2><span>Wink to scroll without raising a hand</span></div>
       <div class="gesture-grid">
+        <article class="flick-guide"><span class="gesture-mark">WINK ↓ ↑</span><h3>Left eye down · right eye up</h3><p>Briefly close <strong>your own left eye</strong> to scroll down, or <strong>your own right eye</strong> to scroll up, keeping the other eye open. Reopen normally to scroll once. Aim for a comfortable 0.2–0.5 second wink. Closing both eyes is ignored.</p></article>
         <article><span class="gesture-mark">LIKE</span><h3>Thumbs-up · play / resume</h3><p>Hold a thumbs-up briefly, then lower your hand. It plays the video; it does not like the post.</p></article>
         <article><span class="gesture-mark">DISLIKE</span><h3>Thumbs-down · pause</h3><p>Hold a thumbs-down briefly, then lower your hand. It pauses the video.</p></article>
         <article><span class="gesture-mark">1 ↔</span><h3>Upright finger · skip 10 seconds</h3><p>Keep your index finger upright, pause briefly, then move it a little left or right. Lower it before skipping again.</p></article>
@@ -46,7 +48,7 @@
         <article class="flick-guide"><span class="gesture-mark">↓ ↑</span><h3>Quick flick down · fingers together up</h3><p><strong>Down:</strong> point your index finger sideways, then flick it to about 45° downward. <strong>Up:</strong> keep your fingers straight and together, then swipe your hand upward a small distance.</p></article>
       </div>
     </section>
-    <p class="guide-note"><strong>No need to hold still or make a special return movement.</strong> Flick from horizontal to diagonally down for the next scroll. Keep your fingers together and swipe up for the previous one. A short automatic cooldown lets you repeat with your hand in view.</p>
+    <p class="guide-note"><strong>Wink scrolling needs no hand movement.</strong> Look toward the camera, wink briefly, and reopen. Left and right mean your own eyes, even in the mirrored preview. One wink gives one scroll; holding an eye shut does not repeat. Hand gestures are still available.</p>
     <section class="wire-guide" aria-label="Touch wire guide">
       <div class="section-line"><h2>One wire. Tap or hold.</h2><span>Active as soon as Bluetooth connects</span></div>
       <p class="guide-note">Keep taps close together: gaps shorter than 0.3 seconds, within 3 seconds total. A brief touch is enough. The action follows after a short pause to check for more taps; four taps act as soon as you release. Hold the final touch for at least 0.7 seconds. Release to stop volume or scrolling.</p>
@@ -65,7 +67,7 @@
     </details>
     <footer><span>Works with supported browser players. Open local media through Files &amp; folders.</span><a href="./">Original link controller</a></footer>
   </main>
-  <script src="camera/app.js?v=10" defer></script>
+  <script src="camera/app.js?v=11" defer></script>
   <script src="camera/wire-engine.js?v=2" defer></script>
   <script src="camera/wire.js?v=2" defer></script>
 </body>
