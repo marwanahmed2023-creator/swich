@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('assert/strict'),fs=require('fs'),vm=require('vm'),path=require('path');
 const root=path.join(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
-const {WireEngine}=require('../camera/wire-engine.js'),{GestureEngine,describe}=require('../camera/gesture-engine.js');
+const {WireEngine}=require('../camera/wire-engine.js');
 function wire(){
  const events=[];let now=0;const engine=new WireEngine(c=>events.push(c));
  const feed=(value,ms)=>{for(let t=0;t<ms;t+=20){now+=20;engine.update(value,now);}};
@@ -27,24 +27,6 @@ function wireTests(){
  w=wire();w.tap();w.feed(445,1000);w.tap();w.feed(445,1000);assert.deepEqual(w.events.map(e=>e.action),['toggle','toggle'],'Widely spaced taps form separate groups');
  w=wire();for(let i=0;i<4;i++){w.feed(951,160);w.feed(445,240);}w.feed(445,600);assert.equal(w.events[0]?.action,'shortcuts','Four deliberate taps within three seconds');
  console.log('PASS: wire 1–4 taps, all four holds, no tap after hold, noise, idle separation, stale stream cancellation and release recovery.');
-}
-function flickTests(){
- for(const direction of [-1,1]){
-  const events=[],e=new GestureEngine(c=>events.push(c));const update=(t,x,y,pose='flick')=>e.update([{pose,label:'Right',x,y}],t);
-  update(0,.5,.5);update(200,.5,.5);update(300,.54,.5+direction*.06);update(400,.58,.5+direction*.12);update(700,.58,.5+direction*.2);
-  assert.deepEqual(events,[{action:'scroll',direction}],'A diagonal conductor flick scrolls once, without changing volume');
-  update(800,.5,.5,'rest');update(1100,.5,.5,'rest');update(1200,.5,.5);update(1400,.5,.5);update(1500,.5,.5-direction*.06);
-  assert.equal(events.length,2);assert.equal(events[1].direction,-direction);
- }
- let events=[],e=new GestureEngine(c=>events.push(c));for(let t=0;t<=5000;t+=100)e.update([{pose:'flick',label:'Right',x:.5,y:.5+t*.00004}],t);
- assert.equal(events.length,0,'Slow drift does not count as a flick');e.update([{pose:'flick',label:'Right',x:.5,y:.78}],5100);assert.equal(events[0]?.action,'scroll','Flick works after waiting, without a timing deadline');
- // Real landmark classification at a 35-degree slant and its mirror.
- const p=Array.from({length:21},()=>({x:.5,y:.7}));p[0]={x:.5,y:.9};
- [5,9,13,17].forEach((base,i)=>{const x=.4+i*.07;for(let j=0;j<4;j++)p[base+j]={x,y:[.65,.55,.65,.71][j]};});
- p[2]={x:.34,y:.75};p[3]={x:.3,y:.7};p[4]={x:.28,y:.75};
- for(let j=0;j<4;j++){const d=j*.1;p[5+j]={x:.4-d*.7,y:.65-d};}
- assert.equal(describe(p).pose,'flick');assert.equal(describe(p.map(a=>({x:1-a.x,y:a.y}))).pose,'flick');
- console.log('PASS: slanted landmarks in either hand, diagonal up/down flicks, one action per flick, deliberate rearming and slow drift rejection.');
 }
 function quickTapTests(){
  const setup=()=>{
@@ -101,4 +83,4 @@ async function routingTests(){
  let release;holdProbe=()=>new Promise(r=>release=r);const changing=send('play');await new Promise(setImmediate);active=3;release();assert.equal((await changing).ok,false,'Switching tabs during frame discovery cancels the old action');
  console.log('PASS: automatic and pinned targeting, embedded document routing, scrolling the top page, private/protected restrictions, and tab-switch cancellation.');
 }
-wireTests();quickTapTests();flickTests();routingTests().catch(e=>{console.error(e);process.exitCode=1;});
+wireTests();quickTapTests();routingTests().catch(e=>{console.error(e);process.exitCode=1;});

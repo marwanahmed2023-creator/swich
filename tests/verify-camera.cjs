@@ -42,7 +42,7 @@ function testGestures(){
  t=engine();feed(t,[[0,{pose:'one'}],[200,{pose:'one'}],[400,{pose:'one',x:.565}],[500,null],[600,{pose:'one'}],[800,{pose:'one',x:.6}]]);assert.deepEqual(actions(t),['seek'],'One missing frame cannot rearm a held action');
  t=engine();feed(t,[[0,{pose:'dislike'}],[650,{pose:'dislike'}],[1000,{pose:'dislike'}]]);assert.deepEqual(actions(t),['pause'],'Thumbs-down pauses once without toggling');
  assert.equal(describe([]),null);assert.equal(describe(Array.from({length:21},()=>({x:NaN,y:0}))),null);
- for(const [raised,thumb,pose] of [[[],false,'rest'],[[],true,'like'],[[0],false,'one'],[[0,1],false,'two'],[[0,1,2,3],false,'rest'],[[1],false,'rest']]){
+ for(const [raised,thumb,pose] of [[[],false,'rest'],[[],true,'like'],[[0],false,'one'],[[0,1],false,'two'],[[0,1,2,3],false,'palm'],[[1],false,'rest']]){
   const points=landmarks(raised,thumb);assert.equal(describe(points).pose,pose,'Landmark classifier: '+pose);
   assert.equal(describe(points.map(p=>({x:1-p.x,y:p.y})),'Left').pose,pose,'Both hands classify the same');
  }
@@ -168,6 +168,12 @@ async function testCameraPage(videoUrl='https://www.youtube.com/watch?v=chosen')
  worker.feed(600,{pose:'like'});worker.feed(1200,{pose:'like'});worker.feed(1800,{});await flush();
  assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='play').length,1);
  assert.equal(nodes.status.textContent,'Playing.');
+ const beforeScroll=commands.filter(c=>c.action==='scroll').length;let scrollTime=1900;
+ const finger=y=>{worker.feed(scrollTime,{pose:'flick',y});scrollTime+=80;};
+ for(let i=0;i<4;i++)finger(.55);for(let i=1;i<=6;i++)finger(.55+.01*i);
+ for(let i=1;i<=5;i++)finger(.61-.012*i);for(let i=1;i<=6;i++)finger(.55+.01*i);
+ await flush();assert.equal(commands.filter(c=>c.action==='scroll').length,beforeScroll+2,'Two down strokes reach the target without lowering the hand');
+ assert.ok(commands.filter(c=>c.action==='scroll').every(c=>c.direction===1),'The return stroke cannot send scroll-up through the helper');
  // A stale worker message must not execute after stopping or on another target.
  const oldWorker=worker,previousSession=worker.session;vm.runInContext('stopCamera()',ctx);
  vm.runInContext("dispatchCommand({session:"+previousSession+",command:{action:'toggle'}})",ctx);await flush();assert.equal(paused,false);

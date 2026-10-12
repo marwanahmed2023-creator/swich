@@ -17,8 +17,12 @@ Start camera or connect Bluetooth: that input becomes active immediately.
 Stop camera / Disconnect wire stop that input. There is no mute gesture.
 
 CAMERA
-Slanted index finger: pause briefly, then flick up/down to scroll once.
-Lower or bend the finger between flicks. Use one hand and good lighting.
+Scroll down: slanted index finger, short and slow downward stroke.
+Scroll up: open hand, large and quick upward sweep (about a quarter of the
+camera preview height in under half a second). Palm movement controls up.
+Repeat without lowering your hand: return the finger up or open hand down.
+The return stroke does not scroll. If your hand leaves the frame, show it
+steadily for a moment before scrolling again. Use one hand and good lighting.
 Upright index finger up/down: volume. Sideways: skip back/forward 10s.
 Two fingers sideways: timeline; bend them in view to set the new position.
 Thumbs-up held briefly: play. Thumbs-down held briefly: pause.
