@@ -45,55 +45,67 @@
     }
     cancel(){this.finish(false);}
     send(action,now,extra={}){this.mode.lastSent=now;this.emit({action,gestureId:this.mode.id,...extra});}
-    settleScroll(h,now){
+    beginScroll(h,now){
       const m=this.mode;
-      Object.assign(m,{phase:'settle',anchorX:h.x,anchorY:h.y,stableAt:now,stableFrames:1,
-        sampleAt:now,sampleX:h.x,sampleY:h.y,x:h.x,y:h.y,stroke:null});
+      Object.assign(m,{scrollReady:true,sampleAt:now,sampleX:h.x,sampleY:h.y,x:h.x,y:h.y,trail:[{at:now,x:h.x,y:h.y}]});
+      this.scrollOrigin(h.x,h.y);
     }
-    readyScroll(x,y){
-      const m=this.mode;m.phase='ready';m.baseX=x;m.baseY=y;m.stroke=null;
+    scrollOrigin(x,y){
+      const m=this.mode;m.baseX=x;m.baseY=y;m.stroke=null;
     }
     scrollHint(){return this.mode.pose==='palm'?'Open hand · large, quick sweep up':'Slanted finger · short, slow stroke down';}
     updateScroll(h,now){
       const m=this.mode,up=m.pose==='palm',direction=up?-1:1;
-      if(!m.phase){this.settleScroll(h,now);return this.message='Hold steady briefly · then '+(up?'sweep your open hand up':'move your slanted finger down');}
+      if(!m.scrollReady){this.beginScroll(h,now);return this.message=this.scrollHint();}
       const dt=now-m.sampleAt,stepX=h.x-m.sampleX,stepY=h.y-m.sampleY;
       m.sampleAt=now;m.sampleX=h.x;m.sampleY=h.y;
-      // Lost frames, re-entry, and tracker jumps cannot supply a swipe's distance.
-      if(dt>250||Math.hypot(stepX,stepY)>.12){this.settleScroll(h,now);return this.message='Repositioning · hold steady briefly';}
-      if(m.phase==='settle'){
-        if(Math.hypot(h.x-m.anchorX,h.y-m.anchorY)>.012){this.settleScroll(h,now);return this.message='Repositioning · hold steady briefly';}
-        m.stableFrames++;
-        if(now-m.stableAt>=220&&m.stableFrames>=3){m.x=h.x;m.y=h.y;this.readyScroll(h.x,h.y);return this.message=this.scrollHint();}
-        return this.message='Hold steady briefly · your hand can stay in view';
-      }
-      const alpha=1-Math.exp(-Math.max(1,dt)/45);
+      // A missing frame or a tracker jump cannot supply swipe distance. Tracking
+      // continues immediately from the new reading; there is no stillness gate.
+      if(dt>250||Math.hypot(stepX,stepY)>.12){this.beginScroll(h,now);return this.message=this.scrollHint();}
+      // Smooth small oscillations before measuring net travel, rather than
+      // classifying each shake as a return/repositioning movement.
+      const alpha=1-Math.exp(-Math.max(1,dt)/90);
       m.x+=(h.x-m.x)*alpha;m.y+=(h.y-m.y)*alpha;
-      if(m.phase==='return'){
-        // Continuing the same stroke never repeats. Its opposite return is inert.
-        if(direction*(m.y-m.extreme)>0)m.extreme=m.y;
-        if(direction*(m.extreme-m.y)>=(up?.055:.02))this.readyScroll(m.x,m.y);
-        return this.message=m.phase==='ready'?this.scrollHint():'Bring '+(up?'your open hand down':'your finger back up')+' to repeat · keep it in view';
+      if(now<(m.cooldownUntil||0)){
+        m.trail=[{at:now,x:h.x,y:h.y}];
+        this.scrollOrigin(m.x,m.y);return this.message=this.scrollHint();
+      }
+      if(up){
+        // A sliding window measures the actual large sweep. Earlier hand shake
+        // cannot start (and expire) a separate gesture timer before the sweep.
+        m.trail.push({at:now,x:h.x,y:h.y});
+        m.trail=m.trail.filter(p=>now-p.at<=500);
+        const swept=m.trail.slice(0,-2).some(p=>{
+          const travel=p.y-m.y,age=now-p.at;
+          return age>0&&travel>=.16&&travel/age>=.00035&&Math.abs(m.x-p.x)<=Math.max(.08,travel*1.4);
+        });
+        if(swept){
+          this.emit({action:'scroll',direction:-1});m.cooldownUntil=now+450;this.beginScroll(h,now);
+          return this.message='Scroll up · ready for another swipe';
+        }
+        return this.message=this.scrollHint();
       }
       const dy=direction*(m.y-m.baseY),dx=m.x-m.baseX;
-      if(dy<-.006){this.readyScroll(m.x,m.y);return this.message='Repositioning · '+(up?'downward return ignored':'upward return ignored');}
+      // The opposite direction never triggers this pose's action. It does not
+      // lock scrolling or require a special return stroke to rearm.
+      if((!m.stroke&&dy<0)||dy<-.02){this.scrollOrigin(h.x,h.y);return this.message=this.scrollHint();}
       if(!m.stroke){
         if(dy<.008){
-          // Stationary waiting never contributes to the speed of a future swipe.
-          if(Math.abs(dx)>.035)this.readyScroll(m.x,m.y);
+          if(Math.abs(dx)>.05)this.scrollOrigin(m.x,m.y);
           return this.message=this.scrollHint();
         }
         m.stroke={at:now-dt,frames:0};
       }
       const stroke=m.stroke,age=now-stroke.at,speed=dy/Math.max(1,age);stroke.frames++;
-      const sideways=Math.abs(dx)>Math.max(up?.08:.04,dy*1.4);
-      const tooLong=age>(up?500:1500),tooFast=!up&&speed>.00024;
-      // Down is deliberately slow and short. Up must travel much farther, fast.
-      if(sideways||tooLong||tooFast){m.phase='return';m.extreme=m.y;return this.message=up?'Reposition, then make a larger, quicker open-hand sweep':'Reposition, then make a short, slower finger stroke';}
-      const enough=up?dy>=.16&&speed>=.00035&&stroke.frames>=2:dy>=.038&&age>=200&&speed>=.000025&&stroke.frames>=3;
+      const sideways=Math.abs(dx)>Math.max(.05,dy*1.4);
+      const tooLong=age>1500,tooFast=age>=160&&speed>.00024;
+      // A nonmatching movement simply starts a fresh measurement. Small shakes
+      // never send the user into a waiting-for-repositioning state.
+      if(sideways||tooLong||tooFast){this.scrollOrigin(m.x,m.y);return this.message=this.scrollHint();}
+      const enough=dy>=.038&&age>=200&&speed>=.000025&&stroke.frames>=3;
       if(enough){
-        this.emit({action:'scroll',direction});m.phase='return';m.extreme=m.y;
-        return this.message='Scroll '+(up?'up':'down')+' · return your '+(up?'hand':'finger')+' to repeat';
+        this.emit({action:'scroll',direction});m.cooldownUntil=now+450;this.scrollOrigin(m.x,m.y);
+        return this.message='Scroll '+(up?'up':'down')+' · ready for another swipe';
       }
       return this.message=this.scrollHint();
     }
@@ -109,12 +121,12 @@
         return this.message=hands.length?'Use just one hand':'Resting · thumbs-up plays · thumbs-down pauses';
       }
       const h=hands[0];
-      if(now<this.warmUntil)return this.message='Getting ready · hold your hand steady';
+      if(now<this.warmUntil)return this.message='Getting ready · show one hand';
       if(this.mode?.label&&h.label&&this.mode.label!==h.label){
         const scrolling=scrollPose(this.mode.pose)||scrollPose(h.pose);
-        this.cancel();this.blocked=true;this.clearRest();return this.message=scrolling?'Hand changed · hold steady briefly':'Hand changed · relax your fingers first';
+        this.cancel();this.blocked=true;this.clearRest();return this.message=scrolling?'Hand changed · start a new swipe':'Hand changed · relax your fingers first';
       }
-      // Scrolling arms from a steady pose and rearms from a return stroke.
+      // Scrolling needs neither a stillness check nor a return stroke.
       // It never requires the generic lower-your-hand gate.
       if(scrollPose(h.pose)&&!this.mode){this.blocked=false;this.clearRest();}
       if(this.blocked){
@@ -130,10 +142,10 @@
           const restAt=m.exitAt,restFrames=m.exitFrames;
           this.finish(true);this.blocked=!scrollPose(m.pose)&&!scrollPose(h.pose);this.clearRest();
           if(h.pose==='rest'){this.restAt=restAt;this.restFrames=restFrames;this.rest(now);}
-          if(scrollPose(m.pose)||scrollPose(h.pose))return this.message='Gesture changed · hold steady briefly';
+          if(scrollPose(m.pose)||scrollPose(h.pose))return this.message='Gesture changed · start your next swipe';
           return this.message='Finished · relax your fingers';
         }
-        return this.message=scrollPose(m.pose)||scrollPose(h.pose)?'Repositioning · waiting for a steady gesture':'Relax your fingers to finish';
+        return this.message=scrollPose(m.pose)||scrollPose(h.pose)?'Reading your hand shape…':'Relax your fingers to finish';
       }
       if(h.pose==='rest')return this.message='Ready · one/two fingers, thumbs-up or thumbs-down';
       if(!m){
@@ -143,7 +155,7 @@
         if(scrollPose(h.pose))return this.updateScroll(h,now);
         return this.message=h.pose==='like'?'Thumbs-up · hold to play':h.pose==='dislike'?'Thumbs-down · hold to pause':h.pose==='one'?'One finger · hold briefly, then move':'Two fingers · hold briefly, then move sideways';
       }
-      if(m.exitAt!==null&&scrollPose(m.pose))this.settleScroll(h,now);
+      if(m.exitAt!==null&&scrollPose(m.pose))this.beginScroll(h,now);
       if(m.exitAt!==null&&(['like','dislike'].includes(m.pose)||!m.ready)){m.at=now;m.frames=0;}
       m.exitAt=null;m.exitFrames=0;m.frames++;
       if(scrollPose(m.pose))return this.updateScroll(h,now);

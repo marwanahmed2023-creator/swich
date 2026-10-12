@@ -1,5 +1,5 @@
 'use strict';
-importScripts('gesture-engine.js?v=8');
+importScripts('gesture-engine.js?v=9');
 const VERSION='0.10.35';
 const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+VERSION+'/';
 const MODEL='https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';

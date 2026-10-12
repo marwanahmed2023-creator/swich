@@ -94,7 +94,7 @@ async function enqueue(source,command,generation){
   }catch(error){
    if(!valid(source,data.generation))continue;
    if(source==='wire'){cancelWire();window.SwichWireDevice?.reset();}else setControls(cameraOn);
-   status(error.message+(source==='wire'?' Release your wire, then try again.':' Hold your hand steady, then start a fresh gesture.'),true);
+   status(error.message+(source==='wire'?' Release your wire, then try again.':' Try a fresh gesture.'),true);
   }
  }}finally{sending[source]=false;}
 }
@@ -124,7 +124,7 @@ async function startCamera(){
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
     status('Loading hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js?v=8');
+    worker=new Worker('camera/tracker-worker.js?v=9');
     const initialized=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
@@ -152,7 +152,7 @@ async function startCamera(){
       const copy=track.clone();try{worker.postMessage({type:'track',track:copy},[copy]);transport='track';}catch{copy.stop();startFallback();}
     }else startFallback();
     starting=false;cameraOn=true;$('cameraPlaceholder').hidden=true;$('liveBadge').hidden=false;
-    setControls(true);status('Camera ready. Slow, short finger strokes scroll down; large, quick open-hand sweeps scroll up. Return to repeat.');
+    setControls(true);status('Camera ready. Slow, short finger strokes scroll down; large, quick open-hand sweeps scroll up. Swipe again to repeat; no need to hold still.');
   }catch(error){
     if(generation!==cameraGeneration)return;
     stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your Chromebook camera.':'Could not start the camera: '+error.message,true);
