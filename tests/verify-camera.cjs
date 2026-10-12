@@ -58,10 +58,10 @@ class Element{
 async function testMedia(){
  let listener,clock=1000,watchdog,ad=false,failPlay=false;
  const v={isConnected:true,readyState:4,currentSrc:'video1',paused:false,currentTime:100,duration:600,volume:.5,muted:false,
-  seekable:{length:1,start:()=>0,end:()=>600},getBoundingClientRect:()=>({width:640,height:480}),
+  seekable:{length:1,start:()=>0,end:()=>600},getBoundingClientRect:()=>({left:0,top:0,right:640,bottom:480,width:640,height:480}),
   pauses:0,plays:0,pause(){this.paused=true;this.pauses++;},async play(){if(failPlay)throw Error('Autoplay');this.paused=false;this.plays++;}};
  let videos=[v];
- const ctx={document:{querySelectorAll:()=>videos,querySelector:()=>ad?{}:null,createElement:()=>new Element(),documentElement:new Element()},
+ const ctx={innerWidth:1280,innerHeight:720,getComputedStyle:()=>({opacity:'1'}),document:{querySelectorAll:()=>videos,querySelector:()=>ad?{}:null,createElement:()=>new Element(),documentElement:new Element()},
   chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}}},Date:{now:()=>clock},setTimeout:()=>1,clearTimeout(){},setInterval(fn){watchdog=fn;}};
  vm.runInNewContext(read('tab-helper/media.js'),ctx);
  const send=(action,extra={})=>new Promise(resolve=>listener({type:'SWICH_VIDEO_COMMAND',controllerId:7,gestureId:'drag',action,...extra},{id:'test'},resolve));
@@ -89,7 +89,7 @@ async function testBackgroundAndBridge(){
  vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome,setTimeout,clearTimeout});
  const send=(request,who=sender)=>new Promise(resolve=>listener(request,who,resolve));
  const command=(action,extra={},tabId=2)=>send({type:'SWICH_MEDIA_COMMAND',tabId,command:{action,gestureId:'g1',...extra}});
- assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_PING'})).capabilities)),['camera-media','direct-playback','bounded-requests']);
+ assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_PING'})).capabilities)),['camera-media','direct-playback','bounded-requests','facebook-media']);
  assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_MEDIA_LIST'})).tabs.map(t=>t.id))),[2]);
  await command('toggle');assert.equal(calls.at(-1).id,2,'Command targets chosen tab even when inactive');assert.equal(calls.at(-1).controllerId,7);
  for(const bad of [{action:'seek',seconds:20},{action:'volumeMove',delta:NaN},{action:'seekMove',delta:2},{action:'zoomMove',scale:99},{action:'unknown'}])assert.equal((await command(bad.action,bad)).ok,false);
@@ -113,11 +113,11 @@ function staticChecks(){
  for(const file of ['camera.html','camera-setup.html'])for(const match of read(file).matchAll(/(?:src|href)="([^"#]+)"/g)){
   const link=match[1].split('?')[0];if(!/^https?:/.test(link)&&link!=='./')assert.ok(fs.existsSync(path.join(root,link)),'Missing asset '+link);
  }
- const manifest=JSON.parse(read('tab-helper/manifest.json'));assert.equal(manifest.version,'1.2.0');assert.deepEqual(manifest.host_permissions,['https://www.youtube.com/*','https://m.youtube.com/*']);
+ const manifest=JSON.parse(read('tab-helper/manifest.json'));assert.equal(manifest.version,'1.3.0');assert.deepEqual(manifest.host_permissions,['https://www.youtube.com/*','https://m.youtube.com/*','https://facebook.com/*','https://www.facebook.com/*','https://m.facebook.com/*','https://web.facebook.com/*']);
  for(const script of manifest.content_scripts.flatMap(s=>s.js))assert.ok(fs.existsSync(path.join(root,'tab-helper',script)));
  console.log('PASS: camera HTML controls, local asset links and extension package references.');
 }
-async function testCameraPage(){
+async function testCameraPage(videoUrl='https://www.youtube.com/watch?v=chosen'){
  const html=read('camera.html'),origin='https://marwanahmed2023-creator.github.io';
  const flush=()=>new Promise(setImmediate);
  class Node extends EventTarget{
@@ -132,8 +132,8 @@ async function testCameraPage(){
  let reachable=true,cameraRequests=0,paused=false,videoTime=100,worker,listener,clock=0,holdMove=false,releaseMove;
  const commands=[],sender={id:'test',frameId:0,url:origin+'/swich/camera.html',tab:{id:7,incognito:false}};
  const chrome={runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}},tabs:{
-  async query(){return [{id:2,url:'https://www.youtube.com/watch?v=chosen',title:'Selected video',incognito:false}];},
-  async get(id){return {id,url:'https://www.youtube.com/watch?v=chosen',incognito:false};},
+  async query(){return [{id:2,url:videoUrl,title:'Selected video',incognito:false}];},
+  async get(id){return {id,url:videoUrl,incognito:false};},
   async sendMessage(id,msg){
    if(!reachable)throw Error('Receiving end does not exist');commands.push({id,...msg});
    if(msg.action==='toggle')paused=!paused;if(msg.action==='play')paused=false;if(msg.action==='pause')paused=true;if(msg.action==='seek')videoTime+=msg.seconds;
@@ -159,14 +159,14 @@ async function testCameraPage(){
   MediaStreamTrackProcessor:class{constructor(){this.readable={};}},setTimeout:()=>1,clearTimeout(){},setInterval:()=>1,clearInterval(){}});
  vm.runInContext(read('camera/app.js'),ctx);await flush();
  assert.equal(nodes.videoConnection.textContent,'Video connected');
- await vm.runInContext("manualCommand({action:'toggle'})",ctx);assert.equal(paused,true);assert.equal(nodes.status.textContent,'YouTube paused.');
+ await vm.runInContext("manualCommand({action:'toggle'})",ctx);assert.equal(paused,true);assert.equal(nodes.status.textContent,'Video paused.');
  await vm.runInContext("manualCommand({action:'seek',seconds:10})",ctx);assert.equal(videoTime,110);
- reachable=false;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,0,'Cannot start tracking when YouTube is unreachable');assert.match(nodes.videoConnection.textContent,/Refresh your YouTube/);
+ reachable=false;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,0,'Cannot start tracking when YouTube is unreachable');assert.match(nodes.videoConnection.textContent,/Refresh your video/);
  reachable=true;await vm.runInContext('startCamera()',ctx);assert.equal(cameraRequests,1);assert.equal(worker.enabled,true);
  assert.equal(nodes.cameraButton.textContent,'Pause controls');
  worker.feed(600,{pose:'like'});worker.feed(1200,{pose:'like'});worker.feed(1800,{});await flush();
  assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='play').length,1);
- assert.equal(nodes.status.textContent,'YouTube playing.');
+ assert.equal(nodes.status.textContent,'Video playing.');
  // A stale worker message must not execute after pause or on another target.
  const previousSession=worker.session;await vm.runInContext('startCamera()',ctx);assert.equal(worker.enabled,false);
  worker.onmessage({data:{type:'command',session:previousSession,command:{action:'toggle'}}});await flush();assert.equal(paused,false);
@@ -183,4 +183,4 @@ async function testCameraPage(){
  vm.runInContext('stopCamera()',ctx);
  console.log('PASS: actual camera page + bridge + background with simulated browser/worker: manual playback, visible connection failure, start/resume preflight, slow-frame gesture delivery and stale-session rejection.');
 }
-(async()=>{testGestures();await testMedia();await testBackgroundAndBridge();await testCameraPage();staticChecks();})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{testGestures();await testMedia();await testBackgroundAndBridge();await testCameraPage();await testCameraPage('https://www.facebook.com/reel/123');staticChecks();})().catch(error=>{console.error(error);process.exitCode=1;});

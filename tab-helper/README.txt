@@ -1,16 +1,16 @@
-Swich Tab Helper v1.2.0
+Swich Tab Helper v1.3.0
 
-NEW: Separate thumbs-up play and thumbs-down pause.
+NEW: Facebook video and Reel controls with the same gestures as YouTube.
 Requests now time out cleanly instead of blocking later controls.
 Setup: https://marwanahmed2023-creator.github.io/swich/camera-setup.html
 Controller: https://marwanahmed2023-creator.github.io/swich/camera.html
 
 To update an existing installation, replace the files in your original
 swich-tab-helper folder with this download's files. Then open
-chrome://extensions and click Reload on Swich Tab Helper. Allow YouTube
-access if asked. Refresh both your YouTube and Swich tabs afterward.
+chrome://extensions and click Reload on Swich Tab Helper. Allow YouTube and Facebook
+access if asked. Refresh your video and Swich tabs afterward.
 
-Open a YouTube video and press Play once. In the camera controller, select
+Open a YouTube or Facebook video and press Play once. In the camera controller, select
 the video and click Enable camera. Allow Camera access for the Swich site.
 Keep the controller tab open while watching the selected video. Use Pause
 controls to suspend gestures, or Stop camera to stop camera capture.
@@ -23,10 +23,14 @@ Index + middle fingers left/right: timeline; bend them in view to commit.
 Raise the finger(s), pause briefly, then move a small amount.
 The first direction selects the action. Relax between gestures.
 No pinching or two-hand gestures are needed.
+Relax means lower your hand or stop showing the gesture.
+On Facebook, open a video or Reel and keep it in view. The helper controls
+the largest visible video. Thumbs-up plays; it does not like the post.
+Seeking needs a seekable timeline; some live videos may not offer one.
 
 The first launch loads MediaPipe hand-tracking files from the internet.
 The camera page reports if the browser needs its window visible.
-These controls change the selected YouTube video, not the
+These controls change the selected video, not the
 Chromebook system volume or desktop mouse.
 
 Original Bluetooth link controls are also supported:
@@ -45,8 +49,8 @@ Leave the controller tab open while browsing. Each recognized gesture
 opens an active tab in your last-used normal Chrome window and brings that
 window forward. The Arduino code stays the same. Links remain on your device.
 
-The extension runs on the Swich website and YouTube. For camera controls
-it reads YouTube tab titles and player state, and changes playback, volume,
+The extension runs on the Swich website, YouTube, and Facebook. For camera controls
+it reads YouTube and Facebook tab titles and player state, and changes playback, volume,
 and seeking. Camera processing happens in the Swich page; camera
 images are not sent through the extension. The extension does not request
 access to every website or browsing history.

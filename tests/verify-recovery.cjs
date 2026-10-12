@@ -48,9 +48,9 @@ class Element{
 async function playbackRecovery(){
  const clock=fakeClock();let listener,stuck=true,plays=0;
  const video={isConnected:true,readyState:4,currentSrc:'a',currentTime:100,duration:500,volume:.5,muted:false,paused:true,
-  getBoundingClientRect:()=>({width:640,height:480}),pause(){this.paused=true;},play(){plays++;if(stuck)return new Promise(()=>{});this.paused=false;return Promise.resolve();}};
+  getBoundingClientRect:()=>({left:0,top:0,right:640,bottom:480,width:640,height:480}),pause(){this.paused=true;},play(){plays++;if(stuck)return new Promise(()=>{});this.paused=false;return Promise.resolve();}};
  const document={querySelectorAll:()=>[video],querySelector:()=>null,createElement:()=>new Element(),documentElement:new Element()};
- vm.runInNewContext(read('tab-helper/media.js'),{document,chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}}},...clock,setInterval(){}});
+ vm.runInNewContext(read('tab-helper/media.js'),{document,innerWidth:1280,innerHeight:720,getComputedStyle:()=>({opacity:'1'}),chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}}}},...clock,setInterval(){}});
  const send=(action,extra={})=>new Promise(resolve=>listener({type:'SWICH_VIDEO_COMMAND',action,gestureId:'g',controllerId:7,...extra},{id:'test'},resolve));
  const pending=send('play');await flush();assert.equal((await send('status')).ok,true);
  await clock.tick(1801);assert.match((await pending).error,/Click Play/);assert.equal(video.paused,true);

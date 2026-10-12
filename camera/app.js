@@ -27,11 +27,11 @@ window.addEventListener('message',event=>{
   if(event.source!==window||event.origin!==location.origin)return;
   const data=event.data;if(data?.channel!==CHANNEL||data.from!=='extension')return;
   if(data.type==='ready'){
-    const ready=data.available===true&&['camera-media','direct-playback','bounded-requests'].every(c=>data.capabilities?.includes(c)),becameReady=!helper&&ready;
+    const ready=data.available===true&&['camera-media','direct-playback','bounded-requests','facebook-media'].every(c=>data.capabilities?.includes(c)),becameReady=!helper&&ready;
     helper=Boolean(ready);$('setupNotice').hidden=helper;
     $('extensionBadge').textContent=helper?'Helper connected · v'+data.version:'Helper update needed';$('extensionBadge').className='badge'+(helper?' ready':'');
-    if(!helper){setControls(false);status('Update Swich Tab Helper to version 1.2 for separate play/pause and the connection fix.');}
-    else if(becameReady){status('Open a YouTube video, then choose it below.');loadTabs();}
+    if(!helper){setControls(false);status('Update Swich Tab Helper to version 1.3 to control YouTube and Facebook videos.');}
+    else if(becameReady){status('Open a YouTube or Facebook video, then choose it below.');loadTabs();}
     updateControls();return;
   }
   if(data.type!=='result'||!pending.has(data.id))return;
@@ -43,7 +43,7 @@ async function loadTabs(){
     const result=await rpc('media-list'),tabs=result.tabs||[];
     const previous=selectedTab;
     $('videoTab').replaceChildren();
-    if(!tabs.length){const option=document.createElement('option');option.value='';option.textContent='Open a YouTube video first';$('videoTab').appendChild(option);await chooseTab(null);status('Open a YouTube video, press Play once, then click the refresh button.');return;}
+    if(!tabs.length){const option=document.createElement('option');option.value='';option.textContent='Open a YouTube or Facebook video first';$('videoTab').appendChild(option);await chooseTab(null);status('Open a YouTube or Facebook video, press Play once, then click the refresh button.');return;}
     for(const tab of tabs){const option=document.createElement('option');option.value=tab.id;option.textContent=tab.title;$('videoTab').appendChild(option);}
     const target=tabs.find(t=>t.id===previous)||tabs.find(t=>t.active)||tabs[0];
     $('videoTab').value=String(target.id);await chooseTab(target.id);
@@ -71,12 +71,12 @@ async function refreshState(){
   try{
     const result=await rpc('media-command',{tabId:id,command:{action:'status'}});
     if(selectedTab!==id)return false;
-    if(!result.state)throw new Error('No video reply. Refresh the selected YouTube tab.');
+    if(!result.state)throw new Error('No video reply. Refresh the selected video tab.');
     displayState(result.state);connection(true);return true;
   }catch(error){if(selectedTab===id){connection(false,error.message);if(controlsOn)setControls(false);status(error.message,true);}return false;}
 }
 function connection(ok,message){
-  $('videoConnection').textContent=ok?'Video connected':message||'YouTube is not connected. Refresh its tab and try again.';
+  $('videoConnection').textContent=ok?'Video connected':message||'The video is not connected. Refresh its tab and try again.';
   $('videoConnection').className='connection'+(ok?' connected':'');
   if(!ok){$('playbackState').textContent='Video not connected';$('videoTime').textContent='—';$('videoVolume').textContent='Volume —';}
 }
@@ -88,7 +88,7 @@ async function manualCommand(command){
     const result=await rpc('media-command',{tabId,command});
     if(currentSession!==session||selectedTab!==tabId)return;
     displayState(result.state);connection(true);
-    status(command.action==='toggle'?(result.state?.paused?'YouTube paused.':'YouTube playing.'):(command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.'));
+    status(command.action==='toggle'?(result.state?.paused?'Video paused.':'Video playing.'):(command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.'));
     if(resume)setControls(true);
   }catch(error){if(currentSession===session){connection(false,error.message);status(error.message,true);}}
   finally{manualBusy=false;updateControls();}
@@ -125,7 +125,7 @@ async function sendGesture(data){
     const result=await rpc('media-command',{tabId,command:data.command});
     if(currentSession!==session)return;
     displayState(result.state);connection(true);
-    const labels={play:'YouTube playing.',pause:'YouTube paused.',toggle:result.state?.paused?'YouTube paused.':'YouTube playing.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',seekEnd:'Timeline released.',volumeEnd:'Volume set.'};
+    const labels={play:'Video playing.',pause:'Video paused.',toggle:result.state?.paused?'Video paused.':'Video playing.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',seekEnd:'Timeline released.',volumeEnd:'Volume set.'};
     if(labels[data.command.action])status(labels[data.command.action]);
   }catch(error){if(currentSession===session){setControls(false);status(error.message+' Click Resume controls to try again.',true);}}
 }
@@ -133,7 +133,7 @@ async function startCamera(){
   if(starting)return;
   if(cameraOn&&controlsOn){setControls(false);status('Controls paused. Your camera preview stays on.');return;}
   if(!navigator.mediaDevices?.getUserMedia){status('Camera access needs Chrome and the live HTTPS website.',true);return;}
-  starting=true;updateControls();status('Checking the selected YouTube video…');
+  starting=true;updateControls();status('Checking the selected video…');
   const startSession=++session,generation=++cameraGeneration;
   let acquired=null;
   try{
@@ -181,7 +181,7 @@ async function startCamera(){
   }finally{if(generation===cameraGeneration)starting=false;updateControls();}
 }
 function startFallback(){
-  transport='visible';$('backgroundNote').textContent='This Chrome version needs the camera panel visible. Keep it alongside YouTube in a separate window, or update Chrome for background control.';
+  transport='visible';$('backgroundNote').textContent='This Chrome version needs the camera panel visible. Keep it alongside your video in a separate window, or update Chrome for background control.';
   fallbackTimer=setInterval(async()=>{
     if(fallbackBusy||document.hidden||!worker||!cameraOn)return;
     fallbackBusy=true;
@@ -211,4 +211,4 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',stopCamera);
 setInterval(()=>{if(cameraOn&&!document.hidden)refreshState();},4000);
-ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update the Swich helper to version 1.2, then refresh this page and YouTube.');}},2000);
+ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update the Swich helper to version 1.3, then refresh this page and your video tab.');}},2000);

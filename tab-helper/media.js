@@ -7,9 +7,22 @@
   const time=n=>{n=Math.max(0,Math.round(n||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');};
   function video(){
     const videos=[...document.querySelectorAll('video')].filter(v=>v.isConnected&&v.readyState>0);
-    videos.sort((a,b)=>{const ar=a.getBoundingClientRect(),br=b.getBoundingClientRect();return br.width*br.height-ar.width*ar.height;});
-    if(!videos.length)throw new Error('Open a YouTube video and press Play once first.');
-    return videos[0];
+    if(videos.includes(document.pictureInPictureElement))return document.pictureInPictureElement;
+    const full=document.fullscreenElement;
+    const candidates=videos.map(v=>{
+      const rect=v.getBoundingClientRect(),style=getComputedStyle(v);
+      if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)return null;
+      if(v.checkVisibility&&!v.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}))return null;
+      if(full&&full!==v&&!full.contains(v))return null;
+      // A feed can keep large, loaded videos far above/below the current post.
+      // Rank by the area actually in view; playback state must not change the target.
+      const width=Math.max(0,Math.min(rect.right,innerWidth)-Math.max(rect.left,0));
+      const height=Math.max(0,Math.min(rect.bottom,innerHeight)-Math.max(rect.top,0));
+      const area=width*height;
+      return area>0?{video:v,area,center:Math.abs((rect.top+rect.bottom)/2-innerHeight/2)}:null;
+    }).filter(Boolean).sort((a,b)=>b.area-a.area||a.center-b.center);
+    if(!candidates.length)throw new Error('Bring a video into view and press Play once first. On Facebook, open the video or Reel you want to control.');
+    return candidates[0].video;
   }
   function bounds(v){
     if(document.querySelector('.ad-showing'))throw new Error('Wait for the advertisement to finish before seeking.');
@@ -40,7 +53,7 @@
     try{
       fresh({expiresAt});
       await Promise.race([v.play(),new Promise((_,reject)=>{timer=setTimeout(()=>{v.pause();reject(new Error('Playback timed out.'));},Math.max(1,Math.min(1800,expiresAt-Date.now())));})]);
-    }catch{throw new Error('Click Play in the YouTube tab once, then try the gesture again.');}
+    }catch{throw new Error('Click Play in the video tab once, then try the gesture again.');}
     finally{clearTimeout(timer);}
   }
   async function end(commit,expiresAt){

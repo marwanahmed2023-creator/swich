@@ -9,8 +9,8 @@
 <body>
   <main>
     <nav><a class="brand" href="./">swich<span> / camera</span></a><span id="extensionBadge" class="badge">Checking helper…</span></nav>
-    <header><p class="eyebrow">YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Play, pause, seek, and change volume on YouTube.<br>All with your camera. No Arduino or ring needed.</p></header>
-    <section id="setupNotice" class="notice" hidden><strong>Update your Swich helper to version 1.2.</strong><p>This update fixes stalled requests and adds separate thumbs-up play and thumbs-down pause. After updating, refresh this page and YouTube.</p><a href="camera-setup.html" target="_blank" rel="noopener">Download &amp; update instructions <span aria-hidden="true">↗</span></a></section>
+    <header><p class="eyebrow">YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Play, pause, seek, and change volume on YouTube and Facebook.<br>All with your camera. No Arduino or ring needed.</p></header>
+    <section id="setupNotice" class="notice" hidden><strong>Update your Swich helper to version 1.3.</strong><p>This update adds Facebook videos and Reels. After updating, refresh this page and your video tab.</p><a href="camera-setup.html" target="_blank" rel="noopener">Download &amp; update instructions <span aria-hidden="true">↗</span></a></section>
     <div class="workspace">
       <section class="camera-card" aria-label="Camera preview">
         <div class="preview">
@@ -22,23 +22,23 @@
       </section>
       <section class="controls-card" aria-label="Video controls">
         <p class="eyebrow">CONNECTED VIDEO</p>
-        <label for="videoTab">Choose a YouTube tab</label>
-        <div class="select-row"><select id="videoTab" disabled><option value="">Open a YouTube video first</option></select><button id="refreshTabs" class="square" aria-label="Refresh YouTube tabs" title="Refresh YouTube tabs" disabled>↻</button></div>
-        <div class="video-links"><a href="https://www.youtube.com/" target="_blank" rel="noopener">Open YouTube ↗</a><button id="showVideo" class="text-button" disabled>Show selected video ↗</button></div>
+        <label for="videoTab">Choose a YouTube or Facebook tab</label>
+        <div class="select-row"><select id="videoTab" disabled><option value="">Open a YouTube or Facebook video first</option></select><button id="refreshTabs" class="square" aria-label="Refresh video tabs" title="Refresh video tabs" disabled>↻</button></div>
+        <div class="video-links"><a href="https://www.youtube.com/" target="_blank" rel="noopener">Open YouTube ↗</a><a href="https://www.facebook.com/" target="_blank" rel="noopener">Open Facebook ↗</a><button id="showVideo" class="text-button" disabled>Show selected video ↗</button></div>
         <div class="player-state"><span id="playbackState">No video selected</span><span id="videoTime">—</span><span id="videoVolume">Volume —</span></div>
         <p id="videoConnection" class="connection" role="status">Choose a video to connect.</p>
         <div class="manual-controls" aria-label="Video playback controls"><button id="backVideo" disabled aria-label="Back 10 seconds">−10s</button><button id="toggleVideo" disabled>Play / Pause</button><button id="forwardVideo" disabled aria-label="Forward 10 seconds">+10s</button></div>
         <button id="cameraButton" class="primary" disabled>Enable camera</button>
         <button id="stopCamera" class="secondary" hidden>Stop camera</button>
         <p id="status" class="status" role="status" aria-live="polite">Checking the Chrome helper…</p>
-        <p id="backgroundNote" class="small">Keep this controller tab open while watching YouTube. Your selected video stays selected when you switch tabs.</p>
+        <p id="backgroundNote" class="small">Keep this controller tab open while watching your video. On Facebook, open the video or Reel and keep it in view; controls follow the largest visible video in your selected tab.</p>
       </section>
     </div>
     <section class="gestures" aria-label="Gesture guide">
       <div class="section-line"><h2>Simple gestures. Four controls.</h2><span>Small movements · relax between actions</span></div>
       <div class="gesture-grid">
-        <article><span class="gesture-mark">LIKE</span><h3>Thumbs-up · play / resume</h3><p>Hold a thumbs-up briefly, then relax. It continues the video and never pauses it.</p></article>
-        <article><span class="gesture-mark">DISLIKE</span><h3>Thumbs-down · pause</h3><p>Hold a thumbs-down briefly, then relax. It pauses the video and never starts it.</p></article>
+        <article><span class="gesture-mark">LIKE</span><h3>Thumbs-up · play / resume</h3><p>Hold a thumbs-up briefly, then lower your hand. It plays the video; it does not like the post.</p></article>
+        <article><span class="gesture-mark">DISLIKE</span><h3>Thumbs-down · pause</h3><p>Hold a thumbs-down briefly, then lower your hand. It pauses the video.</p></article>
         <article><span class="gesture-mark">1 ↔</span><h3>One finger · skip 10 seconds</h3><p>Raise your index finger, pause briefly, then move it a little left or right. Relax before skipping again.</p></article>
         <article><span class="gesture-mark">1 ↕</span><h3>One finger · volume</h3><p>Raise your index finger, pause briefly, then move it up or down. Relax to finish.</p></article>
         <article><span class="gesture-mark">2 ↔</span><h3>Two fingers · timeline</h3><p>Raise your index and middle fingers, pause briefly, then move sideways. Bend them while still in view to set the timeline.</p></article>
@@ -47,6 +47,6 @@
     </section>
     <footer><span>Volume changes the selected video. Keep the controller tab open.</span><a href="./">Bluetooth controller</a></footer>
   </main>
-  <script src="camera/app.js?v=4" defer></script>
+  <script src="camera/app.js?v=5" defer></script>
 </body>
 </html>
