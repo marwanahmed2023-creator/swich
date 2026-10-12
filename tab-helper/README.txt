@@ -25,7 +25,10 @@ Thumbs-up held briefly: play. Thumbs-down held briefly: pause.
 
 WIRE (existing Nano + HM-10, A0 ADCTouch sketch)
 Quick taps: 1 play/pause; 2 back 10s; 3 forward 10s; 4 open saved shortcuts.
-Keep gaps under 0.8 seconds and each group within 3 seconds.
+Keep gaps under 0.3 seconds and each group within 3 seconds.
+Brief contacts count without an added minimum press duration. Actions wait
+0.3 seconds for another tap; four taps act on release. Two consecutive sensor
+readings confirm contact, so the minimum detectable touch depends on sampling.
 Hold the final touch for at least 0.7 seconds:
 Hold: volume up. Tap then hold: volume down.
 Two taps then hold: scroll down. Three taps then hold: scroll up.

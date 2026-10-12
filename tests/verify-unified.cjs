@@ -9,7 +9,7 @@ function wire(){
 }
 function wireTests(){
  for(let count=1;count<=4;count++){
-  const w=wire();for(let i=0;i<count;i++)w.tap();assert.equal(w.events.length,0,'Wait to distinguish a group');w.feed(445,900);
+  const w=wire();for(let i=0;i<count;i++)w.tap();assert.equal(w.events.length,count===4?1:0,'Only the maximum tap count acts immediately on release');w.feed(445,900);
   assert.equal(w.events.length,1);assert.equal(w.events[0].action,['','toggle','seek','seek','shortcuts'][count]);
   if(count===2||count===3)assert.equal(w.events[0].seconds,count===2?-10:10);
   w.feed(445,4000);assert.equal(w.events.length,1,'No duplicate action from an idle wire');
@@ -25,7 +25,7 @@ function wireTests(){
  w=wire();w.feed(951,1200);w.gap(650);assert.equal(w.events.at(-1).commit,false);const n=w.events.length;w.feed(951,2000);assert.equal(w.events.length,n,'Stale data requires release');w.feed(445,400);w.tap();w.feed(445,900);assert.equal(w.events.at(-1).action,'toggle');
  w=wire();w.tap();w.gap(650);w.feed(445,1500);assert.equal(w.events.length,0,'Dropped Bluetooth burst cannot play late');
  w=wire();w.tap();w.feed(445,1000);w.tap();w.feed(445,1000);assert.deepEqual(w.events.map(e=>e.action),['toggle','toggle'],'Widely spaced taps form separate groups');
- w=wire();for(let i=0;i<4;i++){w.feed(951,160);w.feed(445,600);}w.feed(445,600);assert.equal(w.events[0]?.action,'shortcuts','Four deliberate taps within three seconds');
+ w=wire();for(let i=0;i<4;i++){w.feed(951,160);w.feed(445,240);}w.feed(445,600);assert.equal(w.events[0]?.action,'shortcuts','Four deliberate taps within three seconds');
  console.log('PASS: wire 1–4 taps, all four holds, no tap after hold, noise, idle separation, stale stream cancellation and release recovery.');
 }
 function flickTests(){
@@ -45,6 +45,41 @@ function flickTests(){
  for(let j=0;j<4;j++){const d=j*.1;p[5+j]={x:.4-d*.7,y:.65-d};}
  assert.equal(describe(p).pose,'flick');assert.equal(describe(p.map(a=>({x:1-a.x,y:a.y}))).pose,'flick');
  console.log('PASS: slanted landmarks in either hand, diagonal up/down flicks, one action per flick, deliberate rearming and slow drift rejection.');
+}
+function quickTapTests(){
+ const setup=()=>{
+  const events=[],engine=new WireEngine(c=>events.push(c));
+  engine.update(445,0);engine.update(445,300);
+  return {events,engine,send:(value,at)=>engine.update(value,at)};
+ };
+ for(const batched of [false,true])for(let count=1;count<=4;count++){
+  const w=setup();let time=400;
+  for(let i=0;i<count;i++){
+   w.send(950,time);w.send(950,time+(batched?0:10));
+   w.send(445,time+(batched?0:20));w.send(445,time+(batched?0:30));
+   time+=100;
+  }
+  assert.equal(w.events.length,count===4?1:0,'Do not guess a shorter tap group');
+  w.engine.tick(time+199+(batched?0:20));
+  assert.equal(w.events.length,count===4?1:0,'Wait until the next-tap window ends');
+  w.engine.tick(time+200+(batched?0:20));
+  assert.equal(w.events.length,1,'A 20ms touch or two batched contact readings count');
+  assert.equal(w.events[0].action,['','toggle','seek','seek','shortcuts'][count]);
+  if(count===2||count===3)assert.equal(w.events[0].seconds,count===2?-10:10);
+ }
+ let w=setup();w.send(950,400);w.send(445,410);w.send(445,720);assert.equal(w.events.length,0,'Single-sample spikes remain rejected');
+ w=setup();w.send(950,400);w.send(950,410);w.send(445,420);w.send(950,430);w.send(445,440);w.send(445,450);w.engine.tick(740);assert.deepEqual(w.events,[{action:'toggle'}],'One low bounce cannot split a contact into two taps');
+ w=setup();w.send(950,400);w.send(950,410);w.send(445,420);w.send(445,430);
+ w.send(950,719);w.send(950,739);w.send(445,750);w.send(445,760);w.engine.tick(1050);
+ assert.deepEqual(w.events,[{action:'seek',seconds:-10}],'A second touch beginning inside the window stays in the group even if confirmation is later');
+ w=setup();w.send(950,400);w.send(950,410);w.send(445,420);w.send(445,430);
+ w.send(950,721);w.send(950,731);w.send(445,741);w.send(445,751);w.engine.tick(1041);
+ assert.deepEqual(w.events,[{action:'toggle'},{action:'toggle'}],'A second touch beginning outside the window starts a new group');
+ w=setup();for(let i=0;i<100;i++)w.send(950,400);assert.equal(w.events.length,0,'A batch cannot invent elapsed hold time');
+ w.send(950,900);w.send(950,1100);assert.equal(w.events[0].action,'volumeStart');
+ w.send(445,1110);w.send(445,1110);w.engine.tick(1450);assert.deepEqual(w.events.map(e=>e.action),['volumeStart','volumeEnd'],'Batched release stops a hold without firing a tap');
+ w=setup();w.send(950,400);w.send(950,410);w.send(445,420);w.send(445,430);w.engine.tick(1100);assert.equal(w.events.length,0,'A late timer cannot replay a tap after a stale stream');
+ console.log('PASS: 20ms and batched taps, all tap counts, 300ms action timing, boundary contacts, noise, bounce, holds, and delayed-timer cancellation.');
 }
 async function routingTests(){
  let listener,active=2,holdProbe=null;const calls=[],saved={};
@@ -66,4 +101,4 @@ async function routingTests(){
  let release;holdProbe=()=>new Promise(r=>release=r);const changing=send('play');await new Promise(setImmediate);active=3;release();assert.equal((await changing).ok,false,'Switching tabs during frame discovery cancels the old action');
  console.log('PASS: automatic and pinned targeting, embedded document routing, scrolling the top page, private/protected restrictions, and tab-switch cancellation.');
 }
-wireTests();flickTests();routingTests().catch(e=>{console.error(e);process.exitCode=1;});
+wireTests();quickTapTests();flickTests();routingTests().catch(e=>{console.error(e);process.exitCode=1;});

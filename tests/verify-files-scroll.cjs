@@ -39,6 +39,7 @@ async function bluetooth(){
  const emit=text=>{const bytes=new TextEncoder().encode(text),e=new Event('characteristicvaluechanged');wire.value=new DataView(bytes.buffer);wire.dispatchEvent(e);};
  const feed=(value,ms)=>{for(let t=0;t<ms;t+=20){now+=20;emit('A:'+value+',B:0\n');}};
  feed(445,400);emit('A:');emit('9999,B:0\nbad\n');feed(951,120);feed(445,1100);assert.deepEqual(commands,[{action:'toggle'}]);
+ emit('A:951,B:0\nA:951,B:0\nA:445,B:0\nA:445,B:0\n');feed(445,320);assert.deepEqual(commands,[{action:'toggle'},{action:'toggle'}],'A complete short tap in one BLE packet must register');
  feed(951,1000);device.gatt.disconnect();assert.equal(win.SwichWireDevice.connected(),false);assert.equal(commands.at(-1).action,'volumeEnd');assert.equal(commands.at(-1).commit,false);assert.ok(cancelCount);
  console.log('PASS: actual BLE event parsing, automatic activation, tap delivery and disconnect cancellation with simulated HM-10.');
 }

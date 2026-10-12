@@ -13,10 +13,12 @@
   device?.removeEventListener('gattserverdisconnected',cleanup);buffer='';decoder=new TextDecoder();render();hint('Wire disconnected.');
  }
  function receive(event){
+  // One receipt time for the whole packet; the engine counts its sensor samples.
+  const receivedAt=performance.now();
   buffer+=decoder.decode(event.target.value,{stream:true});let end;
   while((end=buffer.indexOf('\n'))!==-1){
    const line=buffer.slice(0,end).trim();buffer=buffer.slice(end+1);const m=/^A:(\d{1,4}),B:([01])$/.exec(line);
-   if(m&&connected){if(window.SwichControls.ready())engine.update(Number(m[1]),performance.now());else engine.reset();}
+   if(m&&connected){if(window.SwichControls.ready())engine.update(Number(m[1]),receivedAt);else engine.reset();}
   }
   if(buffer.length>4096)buffer='';
  }
@@ -37,7 +39,7 @@
  }
  window.SwichWireDevice={reset(){engine.reset();},connected:()=>connected,render};
  $('wireConnect').addEventListener('click',connect);
- setInterval(()=>{engine.tick(performance.now());render();},200);
+ setInterval(()=>engine.tick(performance.now()),40);
  window.addEventListener('pagehide',()=>{engine.reset();if(device?.gatt?.connected)device.gatt.disconnect();});
  render();
 })();
