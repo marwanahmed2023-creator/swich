@@ -1,10 +1,11 @@
 'use strict';
-importScripts('gesture-engine.js?v=11','wink-engine.js?v=11');
+importScripts('gesture-engine.js?v=12','wink-engine.js?v=12');
 const VERSION='0.10.35';
 const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+VERSION+'/';
 const MODEL='https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 const FACE_MODEL='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 let model=null,faceModel=null,reader=null,processingTrack=null,stopped=false,enabled=false,busy=false,lastFrame=-1,lastPreview=0,lastScroll=-Infinity,session=0;
+let lastHandAt=-Infinity,lastHands=[],handLandmarks=[],handHint='Hands optional · wink to scroll';
 function emit(command){
   if(!enabled)return;
   if(command.action==='scroll'){
@@ -42,13 +43,19 @@ async function processFrame(frame){
     const faceResult=faceModel.detectForVideo(bitmap,now);
     const face=SwichWinks.describeFace(faceResult);
     const winkHint=enabled?winks.update(face,now):'Gestures paused';
-    const result=model.detectForVideo(bitmap,now);
-    const hands=(result.landmarks||[]).map((points,i)=>SwichGestures.describe(points,result.handedness?.[i]?.[0]?.categoryName||'')).filter(Boolean);
-    const handHint=enabled?engine.update(hands,now):'Gestures paused';
-    const hint=hands.length?handHint:'Hands optional · wink to scroll';
+    // Do not run the expensive hand detector on every frame of face-only use.
+    // Check periodically for a raised hand, then restore full-rate tracking.
+    // A pending wink gets priority over an idle search for hands.
+    if(lastHands.length||(!winks.candidate&&now-lastHandAt>=500)){
+      const result=model.detectForVideo(bitmap,now);lastHandAt=now;
+      handLandmarks=result.landmarks||[];
+      lastHands=handLandmarks.map((points,i)=>SwichGestures.describe(points,result.handedness?.[i]?.[0]?.categoryName||'')).filter(Boolean);
+      handHint=enabled?engine.update(lastHands,now):'Gestures paused';
+    }
+    const hint=lastHands.length?handHint:'Hands optional · wink to scroll';
     // Preview is small and throttled; inference keeps consuming frames
     // in the worker even when the controller tab is in the background.
-    if(now-lastPreview>120){postMessage({type:'tracking',landmarks:result.landmarks||[],hint,winkHint,faceReady:Boolean(face),hands:hands.length});lastPreview=now;}
+    if(now-lastPreview>120){postMessage({type:'tracking',landmarks:handLandmarks,hint,winkHint,faceReady:Boolean(face),hands:lastHands.length});lastPreview=now;}
   }finally{bitmap?.close();frame.close?.();}
 }
 async function consume(stream){
@@ -64,6 +71,7 @@ self.onmessage=async event=>{
   try{
     if(data.type==='init'){await init();return;}
     if(data.type==='enabled'){engine.reset(performance.now());winks.reset();lastScroll=-Infinity;session=data.session;enabled=data.enabled===true;return;}
+    if(data.type==='calibrateWinks'){winks.reset(true);return;}
     if(data.type==='stream'){consume(data.stream);return;}
     if(data.type==='track'){
       processingTrack=data.track;

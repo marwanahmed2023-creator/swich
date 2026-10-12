@@ -2,10 +2,15 @@
 (()=>{
   if(globalThis.__swichMediaInstalled)return;
   globalThis.__swichMediaInstalled=true;
-  let transaction=null,hideTimer=null,hud=null,lastAudio=null;
+  let transaction=null,hideTimer=null,hud=null,lastAudio=null,localTarget=null,localNavigation=null;
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const time=n=>{n=Math.max(0,Math.round(n||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');};
   function video(){
+    if(localTarget){
+      const chosen=localTarget();
+      if(chosen?.isConnected&&chosen.readyState>0)return chosen;
+      throw new Error('Choose a video or audio file here and tap Play once.');
+    }
     const videos=[...document.querySelectorAll('video')].filter(v=>v.isConnected&&v.readyState>0&&v.id!=='cameraVideo');
     if(videos.includes(document.pictureInPictureElement))return document.pictureInPictureElement;
     const full=document.fullscreenElement;
@@ -110,7 +115,7 @@
     try{
       fresh({expiresAt});
       await Promise.race([v.play(),new Promise((_,reject)=>{timer=setTimeout(()=>{v.pause();reject(new Error('Playback timed out.'));},Math.max(1,Math.min(1800,expiresAt-Date.now())));})]);
-    }catch{throw new Error('Click Play in the video tab once, then try the gesture again.');}
+    }catch{throw new Error(localTarget?'Tap Play on this player once, then try the gesture again.':'Click Play in the video tab once, then try the gesture again.');}
     finally{clearTimeout(timer);}
   }
   async function end(commit,expiresAt){
@@ -136,6 +141,8 @@
     if(transaction&&transaction.owner!==request.controllerId)throw new Error('Finish the other controller gesture first.');
     if(action==='scroll'){
       await end(false,request.expiresAt);fresh(request);
+      const navigated=localNavigation&&await localNavigation(request.direction);
+      if(navigated){feedback(navigated);return {ok:true,page:true,message:navigated,...globalThis.__swichMediaProbe()};}
       const root=shortsRoot();if(root)navigateShorts(request.direction,root);else scrollPage(request.direction);
       return {ok:true,page:true};
     }
@@ -145,6 +152,11 @@
     }
     if(action==='scrollMove'){
       const t=active(request,'scroll'),direction=Math.sign(request.delta),root=shortsRoot();
+      if(direction&&localNavigation){
+        if(Date.now()<t.nextScrollAt)return {ok:true,page:true};
+        const navigated=await localNavigation(direction);
+        if(navigated){t.nextScrollAt=Date.now()+600;feedback(navigated);return {ok:true,page:true,message:navigated};}
+      }
       if(direction&&root){if(Date.now()>=t.nextScrollAt){navigateShorts(direction,root);t.nextScrollAt=Date.now()+600;}}
       else if(direction)scrollPage(direction,t.target,Math.abs(request.delta)*120);
       return {ok:true,page:true};
@@ -174,6 +186,7 @@
       feedback('Volume '+Math.round(transaction.base*100)+'%',transaction.base);
     }else if(action==='volumeMove'){
       const t=active(request,'volume');v.volume=clamp(t.base+request.delta,0,1);v.muted=false;
+      if(localTarget&&Math.abs(v.volume-clamp(t.base+request.delta,0,1))>.02)throw new Error('This browser uses the phone’s volume buttons.');
       feedback('Volume '+Math.round(v.volume*100)+'%',v.volume);
     }else if(action==='volumeEnd'){
       active(request,'volume');transaction=null;
@@ -181,11 +194,16 @@
     return {ok:true,state:state(v)};
   }
   let queue=Promise.resolve();
-  chrome.runtime.onMessage.addListener((request,sender,reply)=>{
-    if(sender.id!==chrome.runtime.id||request?.type!=='SWICH_VIDEO_COMMAND')return false;
+  function execute(request){
     request={...request,expiresAt:Number.isFinite(request.expiresAt)?request.expiresAt:Date.now()+3500};
-    if(request.action==='status'){command(request).then(reply).catch(error=>reply({ok:false,error:error.message}));return true;}
-    queue=queue.then(()=>command(request)).then(reply).catch(error=>reply({ok:false,error:error.message}));
+    if(request.action==='status')return command(request).catch(error=>({ok:false,error:error.message}));
+    queue=queue.then(()=>command(request)).catch(error=>({ok:false,error:error.message}));return queue;
+  }
+  // This same media engine works on our own page without Chrome extension APIs.
+  globalThis.SwichMedia={command:execute,setTarget(fn){localTarget=fn;},setNavigation(fn){localNavigation=fn;}};
+  globalThis.chrome?.runtime?.onMessage?.addListener((request,sender,reply)=>{
+    if(sender.id!==chrome.runtime.id||request?.type!=='SWICH_VIDEO_COMMAND')return false;
+    execute(request).then(reply);
     return true;
   });
   setInterval(()=>{if(transaction&&Date.now()>transaction.deadline)queue=queue.then(()=>end(false)).catch(()=>{});},500);

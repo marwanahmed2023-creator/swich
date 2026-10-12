@@ -17,8 +17,10 @@ Start camera or connect Bluetooth: that input becomes active immediately.
 Stop camera / Disconnect wire stop that input. There is no mute gesture.
 
 CAMERA
+First look normally at the camera while it learns your relaxed eyes.
+Use "Set relaxed eyes again" to recalibrate without widening your eyes.
 Wink scrolling: your own left eye down, your own right eye up. Keep the
-other eye open; briefly wink for about 0.2-0.5 seconds, then reopen to scroll.
+other eye mostly open; briefly wink for about 0.2-0.5 seconds, then reopen to scroll.
 Closing both eyes cancels a wink. Holding an eye shut never repeats.
 Keep one face visible. No hand is needed. The mirrored preview does not
 change which eye controls which direction. Face processing stays on-device.
@@ -49,6 +51,16 @@ Hold the final touch for at least 0.7 seconds:
 Hold: volume up. Tap then hold: volume down.
 Two taps then hold: scroll down. Three taps then hold: scroll up.
 Release to stop. If readings stop, release the wire before trying again.
+
+PHONE / NO EXTENSION
+https://marwanahmed2023-creator.github.io/swich/camera.html?mode=phone&v=12
+Choose local video/audio files or a direct HTTPS media link. Tap Play once,
+then start the camera. Winks switch files, or choose "Scroll this page".
+The camera and player run together on this page without extension APIs.
+Keep Swich visible and your phone unlocked. Other websites/apps cannot be
+controlled from this mode. Desktop cross-tab controls still use the helper.
+Camera, file formats and Bluetooth support depend on the browser. Some
+phone browsers require the phone's volume buttons. No backend is needed.
 
 OTHER MEDIA
 Open a video/audio track and press Play once in its page.

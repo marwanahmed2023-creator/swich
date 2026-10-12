@@ -1,5 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id),CHANNEL='swich-tab-helper-v1';
+let nativeMode=window.SwichNative?.requested===true;
 let helper=false,selectedTab='active',worker=null,stream=null,workerReady=null,cameraOn=false,controlsOn=false,starting=false,manualBusy=false,session=0,wireSession=0,cameraGeneration=0,requestSerial=0,fallbackTimer=null,fallbackBusy=false,transport='';
 const pending=new Map(),edges=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
 const queues={camera:[],wire:[]},sending={camera:false,wire:false};
@@ -11,10 +12,12 @@ function updateControls(){
  for(const id of ['backVideo','toggleVideo','forwardVideo'])$(id).disabled=manualBusy||!helper;
  $('cameraButton').textContent=starting?'Starting camera…':'Start camera';$('cameraButton').hidden=cameraOn;
  $('stopCamera').hidden=!cameraOn&&!starting;$('trackingDot').classList.toggle('on',cameraOn&&controlsOn);
+ if($('relearnWinks'))$('relearnWinks').disabled=!cameraOn;
  window.SwichWireDevice?.render();
 }
-function ping(){window.postMessage({channel:CHANNEL,from:'page',type:'ping'},location.origin);}
+function ping(){if(nativeMode)return;window.postMessage({channel:CHANNEL,from:'page',type:'ping'},location.origin);}
 function rpc(type,extra={}){
+ if(nativeMode)return window.SwichNative.request(type,extra);
  if(!helper)return Promise.reject(new Error('Update the Swich helper and refresh this page first.'));
  const id=Date.now().toString(36)+'-'+(++requestSerial);
  return new Promise((resolve,reject)=>{
@@ -23,6 +26,7 @@ function rpc(type,extra={}){
  });
 }
 window.addEventListener('message',event=>{
+ if(nativeMode)return;
  if(event.source!==window||event.origin!==location.origin)return;
  const data=event.data;if(data?.channel!==CHANNEL||data.from!=='extension')return;
  if(data.type==='ready'){
@@ -38,6 +42,7 @@ window.addEventListener('message',event=>{
  if(data.ok)task.resolve(data);else task.reject(new Error(data.error||'The command could not be completed.'));
 });
 async function loadTabs(){
+ if(nativeMode){await refreshState();updateControls();return;}
  try{
   const result=await rpc('media-list'),tabs=result.tabs||[];
   $('videoTab').replaceChildren();
@@ -90,7 +95,7 @@ async function enqueue(source,command,generation){
    const result=await rpc('media-command',{tabId:selectedTab,source,command:data.command});
    if(!valid(source,data.generation))continue;showResult(result);
    const labels={play:'Playing.',pause:'Paused.',toggle:result.state?.paused?'Paused.':'Playing.',seek:data.command.seconds>0?'Forward 10 seconds.':'Back 10 seconds.',scroll:data.command.direction>0?'Scroll down.':'Scroll up.',seekEnd:'Timeline set.',volumeEnd:'Volume set.',scrollEnd:'Scrolling stopped.'};
-   if(labels[data.command.action])status(labels[data.command.action]);
+   if(result.message||labels[data.command.action])status(result.message||labels[data.command.action]);
   }catch(error){
    if(!valid(source,data.generation))continue;
    if(source==='wire'){cancelWire();window.SwichWireDevice?.reset();}else setControls(cameraOn);
@@ -113,18 +118,18 @@ async function startCamera(){
   if(starting)return;
   if(cameraOn){stopCamera();return;}
   if(!helper)return;
-  if(!navigator.mediaDevices?.getUserMedia){status('Camera access needs Chrome and the live HTTPS website.',true);return;}
+  if(!navigator.mediaDevices?.getUserMedia){status('Camera access needs a supported browser and the live HTTPS website.',true);return;}
   starting=true;updateControls();status('Starting camera…');
   const generation=++cameraGeneration;
   let acquired=null;
   try{
-    status('Allow camera access when Chrome asks…');
+    status('Allow camera access when your browser asks…');
     acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user',width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}});
     if(generation!==cameraGeneration){acquired.getTracks().forEach(t=>t.stop());return;}
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
     status('Loading wink and hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js?v=11');
+    worker=new Worker('camera/tracker-worker.js?v=12');
     const initialized=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Face and hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
@@ -157,14 +162,14 @@ async function startCamera(){
       const copy=track.clone();try{worker.postMessage({type:'track',track:copy},[copy]);transport='track';}catch{copy.stop();startFallback();}
     }else startFallback();
     starting=false;cameraOn=true;$('cameraPlaceholder').hidden=true;$('liveBadge').hidden=false;
-    setControls(true);status('Camera ready. Briefly wink your left eye for down or your right eye for up, then reopen. Both-eye blinks are ignored.');
+    setControls(true);status('Look normally at the camera for a moment to learn your relaxed eyes. Then briefly wink your left eye for down / next, or right eye for up / previous.');
   }catch(error){
     if(generation!==cameraGeneration)return;
-    stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your Chromebook camera.':'Could not start the camera: '+error.message,true);
+    stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your device camera.':'Could not start the camera: '+error.message,true);
   }finally{if(generation===cameraGeneration)starting=false;updateControls();}
 }
 function startFallback(){
-  transport='visible';$('backgroundNote').textContent='This Chrome version needs the camera panel visible. Keep it alongside your video in a separate window, or update Chrome for background control.';
+  transport='visible';if(!nativeMode)$('backgroundNote').textContent='This browser needs the camera panel visible. Keep it alongside your video in a separate window, or update Chrome for background control.';
   fallbackTimer=setInterval(async()=>{
     if(fallbackBusy||document.hidden||!worker||!cameraOn)return;
     fallbackBusy=true;
@@ -192,6 +197,7 @@ $('saveLinks').addEventListener('click',()=>{
  try{const saved={};for(const key of linkKeys){const raw=$('link-'+key).value.trim();if(raw){const u=new URL(raw);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw Error('Use full https:// website links.');saved[key]=u.href;}else saved[key]='';}localStorage.setItem('wave-touch-links',JSON.stringify(saved));status('Shortcuts saved on this device.');}catch(error){status(error.message,true);}
 });
 for(const key of linkKeys)$('open-'+key).addEventListener('click',async()=>{try{await rpc('open',{url:$('link-'+key).value.trim()});}catch(error){status(error.message,true);}});
+$('relearnWinks')?.addEventListener('click',()=>{worker?.postMessage({type:'calibrateWinks'});status('Look normally at the camera for a moment. No need to widen your eyes.');});
 $('cameraButton').addEventListener('click',startCamera);$('stopCamera').addEventListener('click',stopCamera);
 $('refreshTabs').addEventListener('click',loadTabs);
 $('toggleVideo').addEventListener('click',()=>manualCommand({action:'toggle'}));
@@ -200,9 +206,17 @@ $('forwardVideo').addEventListener('click',()=>manualCommand({action:'seek',seco
 $('videoTab').addEventListener('change',()=>chooseTab($('videoTab').value==='active'?'active':Number($('videoTab').value)));
 $('showVideo').addEventListener('click',async()=>{try{await rpc('media-command',{tabId:selectedTab,command:{action:'focus'}});}catch(error){status(error.message,true);}});
 document.addEventListener('visibilitychange',()=>{
- if(transport==='visible'&&cameraOn){setControls(!document.hidden);if(document.hidden)status('Keep the camera panel visible beside your page on this Chrome version.');}
+ if((nativeMode||transport==='visible')&&cameraOn){setControls(!document.hidden);if(document.hidden)status(nativeMode?'Keep Swich visible and unlocked for camera controls.':'Keep the camera panel visible beside your page on this browser.');}
  if(!document.hidden){ping();refreshState();}
 });
 window.addEventListener('pagehide',()=>{stopCamera();cancelWire();});
 setInterval(()=>{if(!document.hidden&&(cameraOn||window.SwichWireDevice?.connected()))refreshState();},4000);
-ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update Swich Tab Helper to version 1.5, then refresh this page.');}},2000);
+function activateNative(){
+ nativeMode=true;helper=true;window.SwichNative.activate();updateControls();
+ status('Ready without an extension. Choose a file, tap Play once, then start the camera.');refreshState();
+}
+if(nativeMode)activateNative();else{ping();updateControls();setTimeout(()=>{
+ if(helper)return;
+ if(window.SwichNative){activateNative();return;}
+ $('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update Swich Tab Helper to version 1.5, then refresh this page.');
+},2000);}

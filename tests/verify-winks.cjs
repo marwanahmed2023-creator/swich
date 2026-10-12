@@ -11,7 +11,7 @@ function setup(dt=80){
  const frame=(left=.1,right=.1,step=dt,extra={})=>{now+=step;hints.push(engine.update(left===null?null:{left,right,x:.5,y:.3,width:.3,...extra},now));};
  const open=(n=3)=>{for(let i=0;i<n;i++)frame();};
  const shut=(side,n=3)=>{for(let i=0;i<n;i++)frame(side==='left'?.85:.1,side==='right'?.85:.1);};
- open();return {events,times,hints,engine,frame,open,shut,now:()=>now};
+ open(Math.max(7,Math.ceil(500/dt)+1));return {events,times,hints,engine,frame,open,shut,now:()=>now};
 }
 // A short wink on either side emits once, only after reopening. Every tested
 // cadence completes in under one second, without a long eye hold.
@@ -24,7 +24,7 @@ for(const dt of [33,66,80,120,200])for(const side of ['left','right']){
  t.shut(side,frames);t.open(Math.ceil(60/dt)+1);assert.equal(t.events.length,2,'A second comfortable wink repeats scrolling');
 }
 for(const side of ['left','right']){
- const t=setup();t.shut(side,15);t.open();assert.deepEqual(t.events,[],'A long eye closure never fires on release or repeats');
+ const t=setup();t.shut(side,30);t.open();assert.deepEqual(t.events,[],'A long eye closure never fires on release or repeats');
  t.shut(side,3);t.open();assert.equal(t.events.length,1,'A brief wink works after a long closure');
 }
 // Simulate bilateral blinks with smooth closing/opening and slight left/right
@@ -45,6 +45,20 @@ t=setup();t.shut('left',2);t.frame(.1,.1,500);t.open();assert.deepEqual(t.events
 t=setup();t.shut('left',2);t.frame(.1,.1,80,{x:.8});t.frame(.1,.1,80,{x:.8});assert.deepEqual(t.events,[],'A face jump cannot finish a wink');
 t=setup();t.engine.reset();t.shut('right',3);t.open();assert.deepEqual(t.events,[],'Starting with an eye shut does not issue a command');t.shut('right',3);t.open();assert.equal(t.events.length,1);
 t=setup();t.frame(.9,.1);t.frame(.9,.1,0);t.open();assert.deepEqual(t.events,[],'Repeated timestamps cannot invent samples');
+// Relaxed eyelids and slight movement of the other eye must not demand a hard squeeze.
+for(const [leftBase,rightBase] of [[.1,.1],[.35,.30],[.42,.18]])for(const side of ['left','right']){
+ const events=[],e=new WinkEngine(c=>events.push(c));let now=0;
+ const sample=(left=leftBase,right=rightBase)=>{e.update({left,right,x:.5,y:.3,width:.3},now);now+=80;};
+ for(let i=0;i<10;i++)sample();
+ for(let repeat=0;repeat<2;repeat++){
+  for(let i=0;i<3;i++)sample(leftBase+(side==='left'?.38:.20),rightBase+(side==='right'?.38:.20));
+  for(let i=0;i<3;i++)sample();
+ }
+ assert.deepEqual(events,[{action:'scroll',direction:side==='left'?1:-1},{action:'scroll',direction:side==='left'?1:-1}]);
+ for(let i=0;i<3;i++)sample(leftBase+.4,rightBase+.4);
+ for(let i=0;i<3;i++)sample();assert.equal(events.length,2,'Bilateral closure is still rejected after calibration');
+ e.reset(true);assert.equal(e.neutral,null,'Relearning clears old resting scores');
+}
 const f=describeFace(result(.9,.1));assert.equal(f.left,.9);assert.equal(f.right,.1,'Eye names are anatomical, independent of category ordering');
 assert.equal(describeFace({}),null);assert.equal(describeFace({...result(),faceLandmarks:[...result().faceLandmarks,...result().faceLandmarks]}),null,'Multiple faces disable winks');
 for(const value of [NaN,Infinity,-1,2])assert.equal(describeFace(result(value,.1)),null);

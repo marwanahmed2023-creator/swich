@@ -4,14 +4,28 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f5f7fa">
   <title>Swich · Camera + wire</title>
-  <link rel="stylesheet" href="camera/style.css?v=6">
+  <link rel="stylesheet" href="camera/style.css?v=12">
 </head>
 <body>
   <main>
     <nav><a class="brand" href="./">swich<span> / camera + wire</span></a><span id="extensionBadge" class="badge">Checking helper…</span></nav>
-    <header><p class="eyebrow">YOUR WINKS. YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Control pages, videos, and audio with a wink, your hands, or a touch wire.<br>Follow the tab you use. Small movements are enough.</p></header>
+    <header><p class="eyebrow">YOUR WINKS. YOUR HANDS. YOUR CONTROLS.</p><h1>A remote,<br>without the remote.</h1><p class="intro">Control pages, videos, and audio with a wink, your hands, or a touch wire.<br>Follow the tab you use. Small movements are enough.</p><p class="mode-links"><a href="camera.html?mode=phone&amp;v=12">Phone / own player · no extension</a><a href="camera-setup.html" id="desktopHelp">Desktop helper setup ↗</a></p></header>
     <section id="setupNotice" class="notice" hidden><strong>Update your Swich helper to version 1.5.</strong><p>This update adds quick scroll gestures and Shorts feed navigation, including while an ad is showing. After updating, refresh your controller and media tabs.</p><a href="camera-setup.html" target="_blank" rel="noopener">Download &amp; update instructions <span aria-hidden="true">↗</span></a></section>
     <div class="workspace">
+      <section id="nativePlayer" class="native-player" aria-label="Your media player" hidden>
+        <p class="eyebrow">PLAY HERE · NO EXTENSION</p><h2 id="fileTitle">Your videos and music</h2>
+        <p class="guide-note">Choose files from your phone, tap Play once, then start the camera. Files stay on your device.</p>
+        <label class="file-picker">Choose video or audio files<input id="chooseFile" type="file" accept="video/*,audio/*" multiple></label>
+        <video id="localVideo" controls playsinline preload="metadata" hidden></video>
+        <audio id="localAudio" controls preload="metadata" hidden></audio>
+        <p id="playerStatus" class="status" role="status">Choose one file, or several to switch between them.</p>
+        <div class="manual-controls"><button id="previousFile" disabled>Previous file</button><button id="nextFile" disabled>Next file</button></div>
+        <label for="nativeScrollAction">Winks and scroll gestures</label>
+        <select id="nativeScrollAction"><option value="files">Next / previous file</option><option value="page">Scroll this page</option></select>
+        <p class="small">Left wink: next or down. Right wink: previous or up.</p>
+        <div id="fileList" class="file-list" aria-label="Selected files"></div>
+        <details><summary>Open a direct media link</summary><p class="guide-note">Use a direct HTTPS video or audio address, such as an MP4 or MP3. Facebook and YouTube page links cannot play here.</p><label for="mediaUrl">Media address</label><div class="url-row"><input id="mediaUrl" type="url" placeholder="https://example.com/video.mp4"><button id="openMediaUrl">Open</button></div></details>
+      </section>
       <section class="camera-card" aria-label="Camera preview">
         <div class="preview">
           <video id="cameraVideo" autoplay muted playsinline></video><canvas id="landmarks" width="640" height="480" aria-hidden="true"></canvas>
@@ -19,13 +33,13 @@
           <span id="liveBadge" class="preview-badge" hidden>Camera on</span>
         </div>
         <div class="camera-footer"><span class="dot" id="trackingDot"></span><span id="trackingHint">Wink scrolling starts with the camera.</span></div>
-        <p id="winkHint" class="guide-note" role="status">Your left eye: down. Your right eye: up.</p>
+        <p id="winkHint" class="guide-note" role="status">Your left eye: down. Your right eye: up.</p><button id="relearnWinks" class="text-button relearn" disabled>Set relaxed eyes again</button><div id="nativeCameraActions" class="native-camera-actions" hidden></div>
       </section>
       <section class="controls-card" aria-label="Page and media controls">
-        <p class="eyebrow">YOUR CURRENT PAGE</p>
+        <div id="desktopTarget"><p class="eyebrow">YOUR CURRENT PAGE</p>
         <label for="videoTab">Which page should respond?</label>
         <div class="select-row"><select id="videoTab" disabled><option value="active">Follow the tab I use</option></select><button id="refreshTabs" class="square" aria-label="Refresh video tabs" title="Refresh video tabs" disabled>↻</button></div>
-        <div class="video-links"><a href="https://www.youtube.com/" target="_blank" rel="noopener">Open YouTube ↗</a><a href="https://www.facebook.com/" target="_blank" rel="noopener">Facebook ↗</a><a href="player.html" target="_blank" rel="noopener">Files &amp; folders ↗</a><button id="showVideo" class="text-button" disabled>Show page ↗</button></div>
+        <div class="video-links"><a href="https://www.youtube.com/" target="_blank" rel="noopener">Open YouTube ↗</a><a href="https://www.facebook.com/" target="_blank" rel="noopener">Facebook ↗</a><a href="player.html" target="_blank" rel="noopener">Files &amp; folders ↗</a><button id="showVideo" class="text-button" disabled>Show page ↗</button></div></div>
         <div class="player-state"><span id="playbackState">Visit a page to connect</span><span id="videoTime">—</span><span id="videoVolume">Volume —</span></div>
         <p id="videoConnection" class="connection" role="status">Open any webpage, video, or audio track.</p>
         <div class="manual-controls" aria-label="Video playback controls"><button id="backVideo" disabled aria-label="Back 10 seconds">−10s</button><button id="toggleVideo" disabled>Play / Pause</button><button id="forwardVideo" disabled aria-label="Forward 10 seconds">+10s</button></div>
@@ -39,7 +53,7 @@
     <section class="gestures" aria-label="Gesture guide">
       <div class="section-line"><h2>Small gestures. More control.</h2><span>Wink to scroll without raising a hand</span></div>
       <div class="gesture-grid">
-        <article class="flick-guide"><span class="gesture-mark">WINK ↓ ↑</span><h3>Left eye down · right eye up</h3><p>Briefly close <strong>your own left eye</strong> to scroll down, or <strong>your own right eye</strong> to scroll up, keeping the other eye open. Reopen normally to scroll once. Aim for a comfortable 0.2–0.5 second wink. Closing both eyes is ignored.</p></article>
+        <article class="flick-guide"><span class="gesture-mark">WINK ↓ ↑</span><h3>Left eye down · right eye up</h3><p>Briefly close <strong>your own left eye</strong> to scroll down, or <strong>your own right eye</strong> to scroll up, letting the other eye stay mostly open. Reopen normally to scroll once. Aim for a comfortable 0.2–0.5 second wink. Closing both eyes is ignored.</p></article>
         <article><span class="gesture-mark">LIKE</span><h3>Thumbs-up · play / resume</h3><p>Hold a thumbs-up briefly, then lower your hand. It plays the video; it does not like the post.</p></article>
         <article><span class="gesture-mark">DISLIKE</span><h3>Thumbs-down · pause</h3><p>Hold a thumbs-down briefly, then lower your hand. It pauses the video.</p></article>
         <article><span class="gesture-mark">1 ↔</span><h3>Upright finger · skip 10 seconds</h3><p>Keep your index finger upright, pause briefly, then move it a little left or right. Lower it before skipping again.</p></article>
@@ -48,7 +62,7 @@
         <article class="flick-guide"><span class="gesture-mark">↓ ↑</span><h3>Quick flick down · fingers together up</h3><p><strong>Down:</strong> point your index finger sideways, then flick it to about 45° downward. <strong>Up:</strong> keep your fingers straight and together, then swipe your hand upward a small distance.</p></article>
       </div>
     </section>
-    <p class="guide-note"><strong>Wink scrolling needs no hand movement.</strong> Look toward the camera, wink briefly, and reopen. Left and right mean your own eyes, even in the mirrored preview. One wink gives one scroll; holding an eye shut does not repeat. Hand gestures are still available.</p>
+    <p class="guide-note"><strong>Wink scrolling needs no hand movement.</strong> Look normally at the camera for a moment while it learns your relaxed eyes, then wink briefly and reopen. Left and right mean your own eyes, even in the mirrored preview. One wink gives one scroll; holding an eye shut does not repeat. Hand gestures are still available.</p>
     <section class="wire-guide" aria-label="Touch wire guide">
       <div class="section-line"><h2>One wire. Tap or hold.</h2><span>Active as soon as Bluetooth connects</span></div>
       <p class="guide-note">Keep taps close together: gaps shorter than 0.3 seconds, within 3 seconds total. A brief touch is enough. The action follows after a short pause to check for more taps; four taps act as soon as you release. Hold the final touch for at least 0.7 seconds. Release to stop volume or scrolling.</p>
@@ -67,7 +81,10 @@
     </details>
     <footer><span>Works with supported browser players. Open local media through Files &amp; folders.</span><a href="./">Original link controller</a></footer>
   </main>
-  <script src="camera/app.js?v=11" defer></script>
+  <script src="tab-helper/media.js?v=12" defer></script>
+  <script src="player/player.js?v=2" defer></script>
+  <script src="camera/native.js?v=12" defer></script>
+  <script src="camera/app.js?v=12" defer></script>
   <script src="camera/wire-engine.js?v=2" defer></script>
   <script src="camera/wire.js?v=2" defer></script>
 </body>
