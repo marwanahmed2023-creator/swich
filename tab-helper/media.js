@@ -62,7 +62,45 @@
     }
     return document.scrollingElement||document.documentElement;
   }
-  function scrollPage(direction,target=scrollTarget(),amount=Math.max(200,innerHeight*.45)){
+  function visible(el){
+    if(!el||!el.isConnected)return false;
+    const r=el.getBoundingClientRect(),s=getComputedStyle(el);
+    return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0&&
+      (!el.checkVisibility||el.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}))&&
+      r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight&&r.width>0&&r.height>0;
+  }
+  function shortsRoot(){
+    const url=globalThis.location;
+    if(!url||!/(^|\.)youtube\.com$/.test(url.hostname)||!/^\/shorts(?:\/|$)/.test(url.pathname))return null;
+    return [...document.querySelectorAll('ytd-shorts')].find(visible)||null;
+  }
+  function navigateShorts(direction,root){
+    const id=direction>0?'navigation-button-down':'navigation-button-up';
+    const buttons=[...root.querySelectorAll('#'+id+' button, button#'+id)].filter(visible);
+    const button=buttons.find(b=>!b.disabled&&!b.closest('[disabled], [aria-disabled="true"]'));
+    if(button){
+      button.click();feedback(direction>0?'Next Short':'Previous Short');return;
+    }
+    // Respect a disabled native control instead of forcing navigation.
+    if(buttons.length)throw new Error('That Shorts navigation button is unavailable. Try again in a moment.');
+    // Some layouts hide the arrows. Scroll the feed itself, never the ad,
+    // comments panel, or iframe under the middle of the screen.
+    const containers=[root.querySelector('#shorts-container')];
+    const reel=root.querySelector('ytd-reel-video-renderer[is-active]');
+    let target=reel?.parentElement;
+    while(target&&root.contains(target)){
+      containers.push(target);target=target.parentElement;
+    }
+    containers.push(root);
+    for(const target of new Set(containers.filter(Boolean))){
+      if(visible(target)&&target.scrollHeight>target.clientHeight+2&&/auto|scroll|hidden/.test(getComputedStyle(target).overflowY)){
+        target.scrollBy({top:direction*target.clientHeight,behavior:'instant'});
+        feedback(direction>0?'Next Short':'Previous Short');return;
+      }
+    }
+    throw new Error('Shorts navigation is not available yet. Let the feed load, then swipe again.');
+  }
+  function scrollPage(direction,target=scrollTarget(),amount=Math.max(200,innerHeight*.65)){
     target.scrollBy({top:direction*amount,behavior:'instant'});
     feedback(direction>0?'Scroll down':'Scroll up');
   }
@@ -96,12 +134,21 @@
     if(action==='cancel'){if(!transaction||transaction.owner===request.controllerId)await end(false,request.expiresAt);return {ok:true};}
     if(action==='status')return {ok:true,page:true,...globalThis.__swichMediaProbe()};
     if(transaction&&transaction.owner!==request.controllerId)throw new Error('Finish the other controller gesture first.');
-    if(action==='scroll'){await end(false,request.expiresAt);fresh(request);scrollPage(request.direction);return {ok:true,page:true};}
+    if(action==='scroll'){
+      await end(false,request.expiresAt);fresh(request);
+      const root=shortsRoot();if(root)navigateShorts(request.direction,root);else scrollPage(request.direction);
+      return {ok:true,page:true};
+    }
     if(action==='scrollStart'){
       await end(false,request.expiresAt);fresh(request);
-      transaction={kind:'scroll',owner:request.controllerId,key:request.controllerId+':'+request.gestureId,target:scrollTarget(),deadline:Date.now()+2500};return {ok:true,page:true};
+      transaction={kind:'scroll',owner:request.controllerId,key:request.controllerId+':'+request.gestureId,target:scrollTarget(),nextScrollAt:0,deadline:Date.now()+2500};return {ok:true,page:true};
     }
-    if(action==='scrollMove'){const t=active(request,'scroll');scrollPage(Math.sign(request.delta),t.target,Math.abs(request.delta)*120);return {ok:true,page:true};}
+    if(action==='scrollMove'){
+      const t=active(request,'scroll'),direction=Math.sign(request.delta),root=shortsRoot();
+      if(direction&&root){if(Date.now()>=t.nextScrollAt){navigateShorts(direction,root);t.nextScrollAt=Date.now()+600;}}
+      else if(direction)scrollPage(direction,t.target,Math.abs(request.delta)*120);
+      return {ok:true,page:true};
+    }
     if(action==='scrollEnd'){active(request,'scroll');transaction=null;return {ok:true,page:true};}
     const v=video();
     if(['toggle','play','pause'].includes(action)){

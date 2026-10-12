@@ -14,7 +14,7 @@ async function scrollingAudio(){
  const send=(action,extra={})=>new Promise(resolve=>listener({type:'SWICH_VIDEO_COMMAND',action,gestureId:'g',controllerId:'7:wire',...extra},{id:'test'},resolve));
  assert.equal((await send('status')).state.kind,'audio');await send('pause');assert.equal(audio.paused,true);await send('play');assert.equal(audio.paused,false);
  await send('seek',{seconds:10});assert.equal(audio.currentTime,30);await send('volumeStart');await send('volumeMove',{delta:-.25});await send('volumeEnd');assert.equal(audio.volume,.25);
- audios=[];assert.equal((await send('status')).page,true);await send('scroll',{direction:1});assert.deepEqual(moves.at(-1),['nested',360]);center=rootNode;await send('scroll',{direction:-1});assert.deepEqual(moves.at(-1),['page',-360]);
+ audios=[];assert.equal((await send('status')).page,true);await send('scroll',{direction:1});assert.deepEqual(moves.at(-1),['nested',520]);center=rootNode;await send('scroll',{direction:-1});assert.deepEqual(moves.at(-1),['page',-520]);
  await send('scrollStart');await send('scrollMove',{delta:.5});assert.deepEqual(moves.at(-1),['page',60]);const n=moves.length;await send('scrollEnd');assert.equal((await send('scrollMove',{delta:.5})).ok,false);assert.equal(moves.length,n,'Release stops continuous scrolling');
  audios=[audio];await send('volumeStart');await send('cancel',{controllerId:'7:camera'});assert.equal((await send('volumeMove',{delta:.1})).ok,true,'Other input cancellation must not cancel this input');await send('cancel');
  console.log('PASS: audio playback/seek/volume, plain-page and nested scrolling, release stops scrolling, independent input cancellation.');

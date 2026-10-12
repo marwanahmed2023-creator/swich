@@ -1,4 +1,4 @@
-Swich Tab Helper v1.4.0
+Swich Tab Helper v1.5.0
 
 Controller: https://marwanahmed2023-creator.github.io/swich/camera.html
 Setup: https://marwanahmed2023-creator.github.io/swich/camera-setup.html
@@ -17,13 +17,16 @@ Start camera or connect Bluetooth: that input becomes active immediately.
 Stop camera / Disconnect wire stop that input. There is no mute gesture.
 
 CAMERA
-Scroll down: slanted index finger, short and slow downward stroke.
-Scroll up: open hand, large and quick upward sweep (about a quarter of the
-camera preview height in under half a second). Palm movement controls up.
-No hold-still or repositioning check is required. Small shakes are smoothed.
-Scrolls rearm automatically after a 0.45-second cooldown, without lowering
-your hand or making a special return movement. Keep one hand in view and
-use good lighting.
+Scroll down: point your index finger horizontally to either side, then flick
+it to about 45 degrees downward in one quick motion. Other fingers bent.
+Scroll up: fingers straight and together, then a small upward hand swipe
+(roughly 8-12% of the preview height). No large sweep or hold-still required.
+Natural shakes are smoothed. A 0.28-second cooldown limits duplicates.
+Repeat with your hand in view; no lowered-hand or repositioning check.
+Ordinary pages scroll about two-thirds of a screen per flick. YouTube Shorts
+uses its next/previous controls even while an ad is visible. If the site
+itself disables navigation, wait until that control becomes available.
+Keep one hand in view and use good lighting.
 Upright index finger up/down: volume. Sideways: skip back/forward 10s.
 Two fingers sideways: timeline; bend them in view to set the new position.
 Thumbs-up held briefly: play. Thumbs-down held briefly: pause.

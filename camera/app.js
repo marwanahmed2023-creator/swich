@@ -26,10 +26,10 @@ window.addEventListener('message',event=>{
  if(event.source!==window||event.origin!==location.origin)return;
  const data=event.data;if(data?.channel!==CHANNEL||data.from!=='extension')return;
  if(data.type==='ready'){
-  const ready=data.available===true&&data.capabilities?.includes('unified-controls'),becameReady=!helper&&ready;
+  const ready=data.available===true&&data.capabilities?.includes('shorts-navigation'),becameReady=!helper&&ready;
   helper=Boolean(ready);$('setupNotice').hidden=helper;
   $('extensionBadge').textContent=helper?'Helper connected · v'+data.version:'Helper update needed';$('extensionBadge').className='badge'+(helper?' ready':'');
-  if(!helper){setControls(false);cancelWire();window.SwichWireDevice?.reset();status('Update Swich Tab Helper to version 1.4, then refresh this page.');}
+  if(!helper){setControls(false);cancelWire();window.SwichWireDevice?.reset();status('Update Swich Tab Helper to version 1.5, then refresh this page.');}
   else if(becameReady){setControls(cameraOn);status('Ready. Start the camera or connect your wire. Controls follow the tab you use.');loadTabs();}
   updateControls();return;
  }
@@ -124,7 +124,7 @@ async function startCamera(){
     stream=acquired;$('cameraVideo').srcObject=stream;await $('cameraVideo').play();
     if(generation!==cameraGeneration)return;
     status('Loading hand tracking. The first load can take a moment…');
-    worker=new Worker('camera/tracker-worker.js?v=9');
+    worker=new Worker('camera/tracker-worker.js?v=10');
     const initialized=new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Hand tracking could not load. Check your internet connection and try again.')),60000);
       workerReady={resolve:data=>{clearTimeout(timer);resolve(data);},reject:error=>{clearTimeout(timer);reject(error);}};
@@ -152,7 +152,7 @@ async function startCamera(){
       const copy=track.clone();try{worker.postMessage({type:'track',track:copy},[copy]);transport='track';}catch{copy.stop();startFallback();}
     }else startFallback();
     starting=false;cameraOn=true;$('cameraPlaceholder').hidden=true;$('liveBadge').hidden=false;
-    setControls(true);status('Camera ready. Slow, short finger strokes scroll down; large, quick open-hand sweeps scroll up. Swipe again to repeat; no need to hold still.');
+    setControls(true);status('Camera ready. Flick your index finger from horizontal to 45° down. For up, keep your fingers together and make a small upward swipe.');
   }catch(error){
     if(generation!==cameraGeneration)return;
     stopCamera();status(error.name==='NotAllowedError'?'Camera permission was denied. Allow Camera for this site, then try again.':error.name==='NotFoundError'?'No camera was found. Check your Chromebook camera.':'Could not start the camera: '+error.message,true);
@@ -200,4 +200,4 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',()=>{stopCamera();cancelWire();});
 setInterval(()=>{if(!document.hidden&&(cameraOn||window.SwichWireDevice?.connected()))refreshState();},4000);
-ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update Swich Tab Helper to version 1.4, then refresh this page.');}},2000);
+ping();updateControls();setTimeout(()=>{if(!helper){$('setupNotice').hidden=false;$('extensionBadge').textContent='Helper update needed';status('Update Swich Tab Helper to version 1.5, then refresh this page.');}},2000);

@@ -89,7 +89,7 @@ async function testBackgroundAndBridge(){
  vm.runInNewContext(read('tab-helper/background.js'),{URL,chrome,setTimeout,clearTimeout});
  const send=(request,who=sender)=>new Promise(resolve=>listener(request,who,resolve));
  const command=(action,extra={},tabId=2)=>send({type:'SWICH_MEDIA_COMMAND',tabId,command:{action,gestureId:'g1',...extra}});
- assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_PING'})).capabilities)),['camera-media','direct-playback','bounded-requests','facebook-media','unified-controls']);
+ assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_PING'})).capabilities)),['camera-media','direct-playback','bounded-requests','facebook-media','unified-controls','shorts-navigation']);
  assert.deepEqual(JSON.parse(JSON.stringify((await send({type:'SWICH_MEDIA_LIST'})).tabs.map(t=>t.id))),[2,4]);
  await command('toggle');assert.equal(calls.at(-1).id,2,'Command targets chosen tab even when inactive');assert.equal(calls.at(-1).controllerId,'7:camera');
  for(const bad of [{action:'seek',seconds:20},{action:'volumeMove',delta:NaN},{action:'seekMove',delta:2},{action:'zoomMove',scale:99},{action:'unknown'}])assert.equal((await command(bad.action,bad)).ok,false);
@@ -113,7 +113,7 @@ function staticChecks(){
  for(const file of ['camera.html','camera-setup.html'])for(const match of read(file).matchAll(/(?:src|href)="([^"#]+)"/g)){
   const link=match[1].split('?')[0];if(!/^https?:/.test(link)&&link!=='./')assert.ok(fs.existsSync(path.join(root,link)),'Missing asset '+link);
  }
- const manifest=JSON.parse(read('tab-helper/manifest.json'));assert.equal(manifest.version,'1.4.0');assert.deepEqual(manifest.host_permissions,['http://*/*','https://*/*']);
+ const manifest=JSON.parse(read('tab-helper/manifest.json'));assert.equal(manifest.version,'1.5.0');assert.deepEqual(manifest.host_permissions,['http://*/*','https://*/*']);
  for(const script of manifest.content_scripts.flatMap(s=>s.js))assert.ok(fs.existsSync(path.join(root,'tab-helper',script)));
  console.log('PASS: camera HTML controls, local asset links and extension package references.');
 }
@@ -169,9 +169,8 @@ async function testCameraPage(videoUrl='https://www.youtube.com/watch?v=chosen')
  assert.equal(paused,false,'Real gesture engine reaches selected video through page, bridge and background');assert.equal(commands.filter(x=>x.action==='play').length,1);
  assert.equal(nodes.status.textContent,'Playing.');
  const beforeScroll=commands.filter(c=>c.action==='scroll').length;let scrollTime=1900;
- const finger=y=>{worker.feed(scrollTime,{pose:'flick',y});scrollTime+=80;};
- for(let i=0;i<4;i++)finger(.55);for(let i=1;i<=6;i++)finger(.55+.01*i);
- for(let i=1;i<=5;i++)finger(.61-.012*i);for(let i=1;i<=6;i++)finger(.55+.01*i);
+ const finger=angle=>{worker.feed(scrollTime,{pose:'flick',y:.55+Math.sin(angle*Math.PI/180)*.08,flickAngle:angle});scrollTime+=80;};
+ for(const angle of [0,15,30,45,30,15,0,0,15,30,45])finger(angle);
  await flush();assert.equal(commands.filter(c=>c.action==='scroll').length,beforeScroll+2,'Two down strokes reach the target without lowering the hand');
  assert.ok(commands.filter(c=>c.action==='scroll').every(c=>c.direction===1),'The return stroke cannot send scroll-up through the helper');
  // A stale worker message must not execute after stopping or on another target.

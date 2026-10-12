@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Swich Tab Helper",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Swich camera and touch-wire controls for webpage video, audio, scrolling, and local files in the Swich player.",
   "minimum_chrome_version": "106",
   "background": {

@@ -1,7 +1,7 @@
 'use strict';
 const ORIGIN='https://marwanahmed2023-creator.github.io';
 const PATHS=new Set(['/swich/','/swich/index.html','/swich/index.htm','/swich/gestures.html','/swich/camera.html']);
-const VERSION='1.4.0',mediaQueues=new Map(),locks=new Map(),lastTargets=new Map();
+const VERSION='1.5.0',mediaQueues=new Map(),locks=new Map(),lastTargets=new Map();
 const WEB=['http://*/*','https://*/*'];
 function controller(url){try{const u=new URL(url);return u.origin===ORIGIN&&PATHS.has(u.pathname);}catch{return false;}}
 function web(url){try{return ['http:','https:'].includes(new URL(url).protocol);}catch{return false;}}
@@ -113,7 +113,7 @@ async function mediaCommand(request,sender,at,prepared){
 }
 chrome.runtime.onMessage.addListener((request,sender,reply)=>{
  if(!allowedSender(sender)){reply({ok:false,error:'This helper only accepts requests from your Swich controller.'});return false;}
- if(request?.type==='SWICH_PING'){reply({ok:true,version:VERSION,capabilities:['camera-media','direct-playback','bounded-requests','facebook-media','unified-controls']});return false;}
+ if(request?.type==='SWICH_PING'){reply({ok:true,version:VERSION,capabilities:['camera-media','direct-playback','bounded-requests','facebook-media','unified-controls','shorts-navigation']});return false;}
  if(request?.type==='SWICH_FOCUS_CONTROLLER'){focus(sender.tab).then(reply).catch(e=>reply({ok:false,error:e.message}));return true;}
  if(request?.type==='SWICH_MEDIA_LIST'){within(listVideos(sender),Date.now()+3500).then(reply).catch(e=>reply({ok:false,error:e.message}));return true;}
  if(request?.type==='SWICH_MEDIA_COMMAND'){
