@@ -5,11 +5,11 @@
   class WireEngine{
     constructor(emit,hint=()=>{}){this.emit=emit;this.hint=hint;this.serial=0;this.reset();}
     reset(){this.end(false);this.ready=false;this.quietAt=null;this.touch=false;this.edge=null;this.edgeAt=0;this.lastAt=null;this.count=0;this.burstAt=null;this.releaseAt=null;this.hold=null;this.pressAt=null;this.touchFrames=0;}
-    end(commit){if(this.hold){this.emit({action:this.hold.kind+'End',gestureId:this.hold.id,commit});this.hold=null;}}
+    end(commit){if(this.hold){this.emit({action:this.hold.kind+'End',gestureId:this.hold.id,commit},this.hold.binding);this.hold=null;}}
     finish(){
       const count=this.count;this.count=0;this.burstAt=null;this.releaseAt=null;
       const command=count===1?{action:'toggle'}:count===2?{action:'seek',seconds:-10}:count===3?{action:'seek',seconds:10}:count===4?{action:'shortcuts'}:null;
-      if(command){this.hint(count+' tap'+(count===1?'':'s')+' · '+['','play / pause','back 10 seconds','forward 10 seconds','shortcuts'][count]);this.emit(command);}
+      if(command){this.hint(count+' tap'+(count===1?'':'s')+' · '+['','play / pause','back 10 seconds','forward 10 seconds','shortcuts'][count]);this.emit(command,'tap'+count);}
     }
     finishIfReady(now){
       if(!this.touch&&this.count&&this.edge!==true&&(this.count===4||now-this.releaseAt>=TAP_GAP||now-this.burstAt>=MAX_GROUP))this.finish();
@@ -48,12 +48,12 @@
       // Holds begin after 0.7s. Every update requires a fresh sensor reading.
       if(this.touch&&this.edge!==false&&now-this.pressAt>=HOLD_TIME&&!this.hold){
         const kind=this.count<=2?'volume':'scroll',direction=[0,1,-1,1,-1][this.count];
-        this.hold={kind,direction,id:'w'+(++this.serial),at:now,last:now,delta:0};
-        this.emit({action:kind+'Start',gestureId:this.hold.id});
+        this.hold={kind,direction,binding:'hold'+this.count,id:'w'+(++this.serial),at:now,last:now,delta:0};
+        this.emit({action:kind+'Start',gestureId:this.hold.id},this.hold.binding);
       }
       if(this.hold&&this.edge!==false&&now-this.hold.last>=120){
         const h=this.hold;h.delta=Math.min(1,h.delta+(now-h.last)/(h.kind==='volume'?5000:1800));h.last=now;
-        this.emit({action:h.kind+'Move',gestureId:h.id,delta:h.delta*h.direction});
+        this.emit({action:h.kind+'Move',gestureId:h.id,delta:h.delta*h.direction},h.binding);
       }
       this.finishIfReady(now);
     }

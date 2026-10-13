@@ -1,0 +1,8 @@
+.gradle/
+**/build/
+local.properties
+*.keystore
+*.jks
+tools/node_modules/
+app/src/main/assets/generated/
+app/src/test/resources/generated/

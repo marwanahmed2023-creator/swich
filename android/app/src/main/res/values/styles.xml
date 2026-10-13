@@ -1,0 +1,4 @@
+<resources>
+ <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:colorAccent">#246DE4</item><item name="android:windowLightStatusBar">true</item><item name="android:navigationBarColor">#F5F7FA</item><item name="android:windowActionModeOverlay">true</item></style>
+ <string name="accessibility_description">Swich turns your deliberate wire taps, winks, and hand gestures into scrolling and media controls in YouTube, Facebook, and Instagram. It reads visible control labels to find player buttons and sends taps or swipes only while an input is running. It does not store or upload screen content. You can stop the inputs from the app or notification.</string>
+</resources>
