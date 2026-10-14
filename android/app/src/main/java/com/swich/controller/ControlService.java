@@ -62,8 +62,11 @@ public final class ControlService extends AccessibilityService {
             if(kind.equals("volume"))base=audio.getStreamVolume(AudioManager.STREAM_MUSIC);
             else if(kind.equals("seek")){
                 AccessibilityNodeInfo seek=seekBar(root);
-                if(seek==null){clear();tell("This player does not expose a timeline. Try the skip gesture instead.");return;}
-                base=seek.getRangeInfo().getCurrent();seekTarget=base;seekId=seek.getViewIdResourceName()==null?"":seek.getViewIdResourceName();
+                if(seek==null){
+                    base=0.5;seekTarget=base;seekId="__screen_timeline__";
+                }else{
+                    base=seek.getRangeInfo().getCurrent();seekTarget=base;seekId=seek.getViewIdResourceName()==null?"":seek.getViewIdResourceName();
+                }
             }
             return;
         }
@@ -74,7 +77,11 @@ public final class ControlService extends AccessibilityService {
             if(action.endsWith("End")){
                 if(kind.equals("seek")&&c.optBoolean("commit")){
                     AccessibilityNodeInfo seek=seekBar(root);
-                    if(seek!=null&&(seekId.isEmpty()||seekId.equals(seek.getViewIdResourceName()))){Bundle b=new Bundle();b.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE,(float)seekTarget);tell(seek.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(),b)?"Timeline set":"This player did not accept timeline control.");}
+                    if("__screen_timeline__".equals(seekId)){
+                        Rect bounds=new Rect();root.getBoundsInScreen(bounds);
+                        float x=bounds.left+(float)Math.max(0,Math.min(1,seekTarget))*bounds.width();
+                        tapAt(x,bounds.top+bounds.height()*.88f,"Tapped the approximate timeline position.");
+                    }else if(seek!=null&&(seekId.isEmpty()||seekId.equals(seek.getViewIdResourceName()))){Bundle b=new Bundle();b.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE,(float)seekTarget);tell(seek.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(),b)?"Timeline set":"This player did not accept timeline control.");}
                 }
                 clear();return;
             }
@@ -131,11 +138,28 @@ public final class ControlService extends AccessibilityService {
                     return;
                 }
             }
-            // A Shorts player often has no timeline at all. Use the existing vertical
-            // navigation gesture as a useful fallback instead of silently doing nothing.
-            swipe(root,forward?1:-1,now);
-            tell("No seek timeline here — tried "+(forward?"next":"previous")+" video navigation.");
+            Rect bounds=new Rect();root.getBoundsInScreen(bounds);
+            float x=bounds.left+bounds.width()*(forward?.82f:.18f);
+            float y=bounds.top+bounds.height()*.48f;
+            doubleTapAt(x,y,forward?"Double-tapped to skip forward":"Double-tapped to skip back");
         }
+    }
+    private void doubleTapAt(float x,float y,String message){
+        Path path=new Path();path.moveTo(x,y);
+        boolean accepted=dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(path,0,55)).build(),new GestureResultCallback(){
+            @Override public void onCompleted(GestureDescription gesture){
+                new Handler(getMainLooper()).postDelayed(()->{
+                    Path second=new Path();second.moveTo(x,y);
+                    boolean ok=dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(second,0,55)).build(),new GestureResultCallback(){
+                        @Override public void onCompleted(GestureDescription g){tell(message+" (player response depends on YouTube).");}
+                        @Override public void onCancelled(GestureDescription g){tell("Second skip tap was cancelled.");}
+                    },null);
+                    if(!ok)tell("Second skip tap was rejected.");
+                },90);
+            }
+            @Override public void onCancelled(GestureDescription gesture){tell("Skip tap was cancelled.");}
+        },null);
+        if(!accepted)tell("Skip tap was rejected.");
     }
     private void tapScreen(AccessibilityNodeInfo root,float xFraction,float yFraction,String message){
         Rect r=new Rect();root.getBoundsInScreen(r);
