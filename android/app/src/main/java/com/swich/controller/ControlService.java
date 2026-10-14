@@ -91,7 +91,15 @@ public final class ControlService extends AccessibilityService {
                 audio.setStreamVolume(AudioManager.STREAM_MUSIC,volume,AudioManager.FLAG_SHOW_UI);tell("Media volume "+Math.round(100f*volume/Math.max(1,max))+"%");
             }else if(kind.equals("scroll")){if(Math.abs(delta)>.001)swipe(root,delta>0?1:-1,now);}
             else if(kind.equals("seek")){
-                AccessibilityNodeInfo seek=seekBar(root);if(seek!=null){var r=seek.getRangeInfo();seekTarget=Math.max(r.getMin(),Math.min(r.getMax(),base+delta*(r.getMax()-r.getMin())));tell("Timeline selected. Bend your fingers to apply.");}
+                AccessibilityNodeInfo seek=seekBar(root);
+                if(seek!=null&&seek.getRangeInfo()!=null){
+                    var r=seek.getRangeInfo();
+                    seekTarget=Math.max(r.getMin(),Math.min(r.getMax(),base+delta*(r.getMax()-r.getMin())));
+                    tell("Timeline selected. Bend your fingers to apply.");
+                }else if("__screen_timeline__".equals(seekId)){
+                    seekTarget=Math.max(0,Math.min(1,base+delta*.5));
+                    tell("Approximate timeline position selected. Bend your fingers to apply.");
+                }
             }
             return;
         }
@@ -139,10 +147,31 @@ public final class ControlService extends AccessibilityService {
                     return;
                 }
             }
-            Rect bounds=new Rect();root.getBoundsInScreen(bounds);
-            float x=bounds.left+bounds.width()*(forward?.82f:.18f);
+            skipWithPauseAndResume(root,forward);
+        }
+    }
+    private void skipWithPauseAndResume(AccessibilityNodeInfo root,boolean forward){
+        Rect bounds=new Rect();root.getBoundsInScreen(bounds);
+        if(bounds.width()<100||bounds.height()<200){tell("Could not locate the video area.");return;}
+        AccessibilityNodeInfo pause=playerButton(root,"pause");
+        Runnable skip=()->{
+            float x=bounds.left+bounds.width()*(forward?.84f:.16f);
             float y=bounds.top+bounds.height()*.48f;
-            doubleTapAt(x,y,forward?"Double-tapped to skip forward":"Double-tapped to skip back");
+            doubleTapAt(x,y,forward?"Skipped forward":"Skipped back");
+            new Handler(getMainLooper()).postDelayed(()->{
+                AccessibilityNodeInfo fresh=target();
+                if(fresh==null)return;
+                AccessibilityNodeInfo play=playerButton(fresh,"play");
+                if(play!=null&&click(play)){tell(forward?"Skipped forward and resumed":"Skipped back and resumed");return;}
+                tapScreen(fresh,.5f,.5f,"Tapped video to resume after skip.");
+            },650);
+        };
+        if(pause!=null&&click(pause)){
+            tell("Paused before skip.");
+            new Handler(getMainLooper()).postDelayed(skip,180);
+        }else{
+            tapScreen(root,.5f,.5f,"Toggling playback before skip.");
+            new Handler(getMainLooper()).postDelayed(skip,250);
         }
     }
     private void doubleTapAt(float x,float y,String message){
