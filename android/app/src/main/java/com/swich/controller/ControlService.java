@@ -8,6 +8,7 @@ import android.graphics.Path;
 import android.graphics.Rect;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.view.KeyEvent;
