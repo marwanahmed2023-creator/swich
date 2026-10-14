@@ -93,14 +93,44 @@ public final class ControlService extends AccessibilityService {
         }else if(action.equals("toggle")||action.equals("play")||action.equals("pause")){
             AccessibilityNodeInfo button=playerButton(root,action);
             if(button!=null&&click(button)){tell(action.equals("toggle")?"Play / pause":"Playback command sent");return;}
-            int key=action.equals("play")?KeyEvent.KEYCODE_MEDIA_PLAY:action.equals("pause")?KeyEvent.KEYCODE_MEDIA_PAUSE:KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
-            mediaKey(audio,key);tell("Playback key sent. Player support varies.");
+            if(action.equals("toggle")){
+                // YouTube in Chrome often exposes no play button while Shorts controls are hidden.
+                // A real center tap toggles the active video in that case.
+                tapScreen(root,0.5f,0.5f,"Tapped video to toggle playback.");
+                return;
+            }
+            int key=action.equals("play")?KeyEvent.KEYCODE_MEDIA_PLAY:KeyEvent.KEYCODE_MEDIA_PAUSE;
+            mediaKey(audio,key);tell("Playback key sent. If the player ignores it, try the play button on screen.");
         }else if(action.equals("seek")){
             boolean forward=c.optInt("seconds",10)>0;
             AccessibilityNodeInfo button=find(root,n->label(n).matches(forward?"(fast forward|forward|skip forward)( 10 seconds)?":"(rewind|back|skip back)( 10 seconds)?"));
             if(button!=null&&click(button)){tell(forward?"Skip forward":"Skip back");return;}
-            mediaKey(audio,forward?KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:KeyEvent.KEYCODE_MEDIA_REWIND);tell("Seek key sent. Distance and support depend on the player.");
+            AccessibilityNodeInfo seek=seekBar(root);
+            if(seek!=null&&seek.getRangeInfo()!=null){
+                android.view.accessibility.AccessibilityNodeInfo.RangeInfo range=seek.getRangeInfo();
+                float min=range.getMin(),max=range.getMax(),current=range.getCurrent();
+                float step=max>1000?10000f:Math.max(1f,(max-min)*0.05f);
+                Bundle args=new Bundle();args.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE,Math.max(min,Math.min(max,current+(forward?step:-step))));
+                if(seek.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(),args)){
+                    tell(forward?"Skipped forward on timeline":"Skipped back on timeline");return;
+                }
+            }
+            mediaKey(audio,forward?KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:KeyEvent.KEYCODE_MEDIA_REWIND);
+            tell("This player does not expose a working skip control here. Shorts may not support 10-second seeking.");
         }
+    }
+    private void tapScreen(AccessibilityNodeInfo root,float xFraction,float yFraction,String message){
+        Rect r=new Rect();root.getBoundsInScreen(r);
+        if(r.width()<100||r.height()<200){tell("Could not find the video area to tap.");return;}
+        float x=r.left+r.width()*xFraction,y=r.top+r.height()*yFraction;
+        Path path=new Path();path.moveTo(x,y);
+        boolean accepted=dispatchGesture(new GestureDescription.Builder()
+            .addStroke(new GestureDescription.StrokeDescription(path,0,60)).build(),
+            new GestureResultCallback(){
+                @Override public void onCompleted(GestureDescription gesture){tell(message);}
+                @Override public void onCancelled(GestureDescription gesture){tell("The video did not accept the tap.");}
+            },null);
+        if(!accepted)tell("The video did not accept the tap.");
     }
     private void swipe(AccessibilityNodeInfo root,int direction,long now){
         if(swiping||now-lastScroll<600)return;
