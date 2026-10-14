@@ -3,7 +3,7 @@ package com.swich.controller;
 import org.junit.Test;
 import org.json.JSONObject;
 import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 public class EngineCoreTest {
     private final List<JSONObject> events=new ArrayList<>();
     private EngineCore engine() throws Exception {
-        return new EngineCore(Files.readString(Path.of(System.getProperty("swich.assets"),"engines.js")),s->{try{events.add(new JSONObject(s));}catch(Exception e){throw new IllegalArgumentException(e);}},s->{});
+        return new EngineCore(new String(Files.readAllBytes(Paths.get(System.getProperty("swich.assets"),"engines.js")),StandardCharsets.UTF_8),s->{try{events.add(new JSONObject(s));}catch(Exception e){throw new IllegalArgumentException(e);}},s->{});
     }
     @Test public void allBrowserWinkScenariosRunInAndroidInterpreter() throws Exception {
         try(var in=getClass().getResourceAsStream("/generated/verify-winks.js")){assertNotNull(in);engine().verify(new String(in.readAllBytes(),StandardCharsets.UTF_8));}
