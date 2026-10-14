@@ -79,6 +79,14 @@ final class NativeCamera {
         for(NormalizedLandmark p:landmarks)points.put(new JSONObject().put("x",p.x()).put("y",p.y()));
         return points;
     }
+    private static JSONArray eyePoints(List<NormalizedLandmark> landmarks)throws Exception{
+        JSONArray points=new JSONArray();
+        for(int index:new int[]{33,133,263,362}){
+            NormalizedLandmark p=landmarks.get(index);
+            points.put(new JSONObject().put("x",p.x()).put("y",p.y()));
+        }
+        return points;
+    }
     private void analyze(ImageProxy proxy){
         Bitmap raw=null,upright=null;
         MPImage image=null;
@@ -91,7 +99,7 @@ final class NativeCamera {
             image=new BitmapImageBuilder(upright).build();
             FaceLandmarkerResult result=face.detectForVideo(image,now);
             JSONArray faces=new JSONArray(),blends=new JSONArray();
-            for(var landmarks:result.faceLandmarks())faces.put(points(landmarks));
+            for(var landmarks:result.faceLandmarks())faces.put(eyePoints(landmarks));
             if(result.faceBlendshapes().isPresent())for(List<Category> categories:result.faceBlendshapes().get()){
                 JSONArray scores=new JSONArray();for(Category c:categories)scores.put(new JSONObject().put("categoryName",c.categoryName()).put("score",c.score()));
                 blends.put(new JSONObject().put("categories",scores));
@@ -105,7 +113,7 @@ final class NativeCamera {
             }
             if(SystemClock.elapsedRealtime()-now>700){engine.call("cameraReset",SystemClock.elapsedRealtime());hint.accept("Camera catching up. Try winks without hand tracking.");return;}
             JSONObject frame=new JSONObject().put("aspect",(double)upright.getHeight()/upright.getWidth())
-                .put("faceLandmarks",faces).put("faceBlendshapes",blends).put("hands",handData);
+                .put("eyeLandmarks",faces).put("faceBlendshapes",blends).put("hands",handData);
             winkPending=Boolean.TRUE.equals(engine.call("frame",frame.toString(),now));
             if(MainActivity.isVisible()&&now-lastPreview>500){lastPreview=now;Bitmap preview=Bitmap.createScaledBitmap(upright,240,Math.round(240f*upright.getHeight()/upright.getWidth()),true);if(preview==upright)preview=upright.copy(Bitmap.Config.ARGB_8888,false);MainActivity.showPreview(preview);}
         }catch(Exception e){if(!closed)main.post(()->{if(!closed)failure.accept(e);});}
