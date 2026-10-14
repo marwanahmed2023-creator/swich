@@ -55,7 +55,8 @@ public final class MainActivity extends Activity {
         wire=button(content,"Connect touch wire",()->{if(AppState.wireOn)send(InputService.STOP_WIRE);else requestInput(InputService.WIRE);});
         button(content,"Change wire actions",this::editBindings);
         status=text(content,"",14,false);status.setMinHeight(dp(100));
-        button(content,"Open YouTube",()->openApp("com.google.android.youtube","https://www.youtube.com/"));
+        button(content,"Open YouTube app",()->openApp("com.google.android.youtube","https://www.youtube.com/"));
+        button(content,"Open YouTube in Chrome",this::openYouTubeInChrome);
         button(content,"Open Facebook",()->openApp("com.facebook.katana","https://www.facebook.com/"));
         button(content,"Open Instagram",()->openApp("com.instagram.android","https://www.instagram.com/"));
         button(content,"STOP ALL CONTROLS",()->{send(InputService.STOP);preview.setImageDrawable(null);});
@@ -105,6 +106,12 @@ public final class MainActivity extends Activity {
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request!=7)return;for(int i=0;i<permissions.length;i++)if(results[i]!=PackageManager.PERMISSION_GRANTED&&!permissions[i].equals(Manifest.permission.POST_NOTIFICATIONS)){toast("That permission is needed for this input. You can grant it in Android app settings.");pending="";return;}beginPending();}
     private void beginPending(){String kind=pending;pending="";if(kind.equals(InputService.CAMERA))startForegroundService(new Intent(this,InputService.class).setAction(kind).putExtra("hands",hands.isChecked()));else if(kind.equals(InputService.WIRE))scan();}
     private void send(String action){if(AppState.cameraOn||AppState.wireOn)startService(new Intent(this,InputService.class).setAction(action));}
+    private void openYouTubeInChrome(){
+        Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse("https://m.youtube.com/shorts/"));
+        intent.setPackage("com.android.chrome");
+        try{startActivity(intent);toast("YouTube opened in Chrome. Start the camera before switching apps.");}
+        catch(ActivityNotFoundException e){toast("Chrome is not installed. Install Chrome, then try again.");}
+    }
     private void openApp(String name,String website){
         Intent launch=getPackageManager().getLaunchIntentForPackage(name);
         if(launch==null&&name.equals("com.facebook.katana"))launch=getPackageManager().getLaunchIntentForPackage("com.facebook.lite");
