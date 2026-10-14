@@ -173,7 +173,7 @@ public final class ControlService extends AccessibilityService {
         return find(root,n->{String s=label(n);boolean play=s.matches("play( video)?(, button)?"),pause=s.matches("pause( video)?(, button)?");return action.equals("toggle")?(play||pause):action.equals("play")?play:pause;});
     }
     private AccessibilityNodeInfo seekBar(AccessibilityNodeInfo root){
-        return find(root,n->n.getRangeInfo()!=null&&n.getActionList().contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS)
+        return find(root,n->n.getRangeInfo()!=null
             &&((n.getClassName()!=null&&n.getClassName().toString().contains("SeekBar"))||label(n).matches(".*(seek|timeline|progress).*"))&&!label(n).contains("volume"));
     }
     private boolean click(AccessibilityNodeInfo n){for(int i=0;n!=null&&i<3;i++,n=n.getParent())if(n.isClickable()&&n.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;return false;}
