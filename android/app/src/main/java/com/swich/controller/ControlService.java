@@ -195,6 +195,9 @@ public final class ControlService extends AccessibilityService {
         if(pause!=null&&click(pause)){
             tell("Paused before skip.");
             new Handler(getMainLooper()).postDelayed(skip,180);
+        }else if(playerButton(root,"play")!=null){
+            // Already paused: do not center-tap and accidentally resume before the skip.
+            new Handler(getMainLooper()).postDelayed(skip,120);
         }else{
             tapScreen(root,.5f,.5f,"Toggling playback before skip.");
             new Handler(getMainLooper()).postDelayed(skip,250);
