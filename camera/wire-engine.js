@@ -2,9 +2,11 @@
   'use strict';
   // ADCTouch on the existing A0 wire: idle ~445, contact >600.
   const TAP_GAP=300,MAX_GROUP=3000,HOLD_TIME=700,STALE_TIME=600;
+  // Proximity readings below the contact threshold toggle playback speed once.
+  const HOVER_ON=520,HOVER_OFF=485,HOVER_TIME=500;
   class WireEngine{
     constructor(emit,hint=()=>{}){this.emit=emit;this.hint=hint;this.serial=0;this.reset();}
-    reset(){this.end(false);this.ready=false;this.quietAt=null;this.touch=false;this.edge=null;this.edgeAt=0;this.lastAt=null;this.count=0;this.burstAt=null;this.releaseAt=null;this.hold=null;this.pressAt=null;this.touchFrames=0;}
+    reset(){this.end(false);this.ready=false;this.quietAt=null;this.touch=false;this.edge=null;this.edgeAt=0;this.lastAt=null;this.count=0;this.burstAt=null;this.releaseAt=null;this.hold=null;this.pressAt=null;this.touchFrames=0;this.hoverAt=null;this.hoverArmed=false;this.hoverFired=false;}
     end(commit){if(this.hold){this.emit({action:this.hold.kind+'End',gestureId:this.hold.id,commit},this.hold.binding);this.hold=null;}}
     finish(){
       const count=this.count;this.count=0;this.burstAt=null;this.releaseAt=null;
@@ -21,10 +23,22 @@
       if(this.lastAt!==null&&(now-this.lastAt>STALE_TIME||now<this.lastAt))this.reset();
       this.lastAt=now;
       if(!this.ready){
-        if(value<550){this.quietAt??=now;if(now-this.quietAt>=300){this.ready=true;this.hint('Wire ready · tap or hold');}}
+        if(value<550){this.quietAt??=now;if(now-this.quietAt>=300){this.ready=true;this.hint('Wire ready · hover for 2×, tap or hold');}}
         else this.quietAt=null;
         return;
       }
+      // Require a return to the idle baseline before another hover can toggle.
+      // This prevents a touch release or noisy sensor value from toggling speed.
+      if(value<HOVER_OFF){this.hoverArmed=true;this.hoverAt=null;this.hoverFired=false;}
+      else if(value>600){this.hoverArmed=false;this.hoverAt=null;}
+      else if(!this.touch&&this.hoverArmed&&value>=HOVER_ON){
+        if(this.hoverAt===null)this.hoverAt=now;
+        if(!this.hoverFired&&now-this.hoverAt>=HOVER_TIME){
+          this.hoverFired=true;this.hoverArmed=false;
+          this.emit({action:'speedToggle'},'hover');
+          this.hint('Wire hover · toggling playback speed');
+        }
+      }else if(value<HOVER_ON){this.hoverAt=null;}
       const next=value>600?true:value<550?false:this.touch;
       if(next!==this.touch){
         if(this.edge!==next){this.edge=next;this.edgeAt=now;this.touchFrames=1;}else this.touchFrames++;

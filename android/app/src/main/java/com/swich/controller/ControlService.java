@@ -27,7 +27,8 @@ public final class ControlService extends AccessibilityService {
     private String owner="",gesture="",kind="",targetPackage="",seekId="";
     private double base,seekTarget;
     private long deadline,lastScroll;
-    private boolean swiping;
+    private boolean swiping,speed2x;
+    private String speedPackage="";
     @Override protected void onServiceConnected(){instance=this;AppState.action="Accessibility ready. Start your camera or wire.";}
     @Override public void onAccessibilityEvent(AccessibilityEvent event){
         // Commands always re-check the active window. No screen history is collected.
@@ -55,6 +56,10 @@ public final class ControlService extends AccessibilityService {
         String pkg=root.getPackageName().toString();
         if(!targetPackage.isEmpty()&&!targetPackage.equals(pkg))clear();
         if(!owner.isEmpty()&&!owner.equals(source)){tell("Finish the other input’s gesture first.");return;}
+        if(action.equals("speedToggle")){
+            if(!owner.isEmpty()){tell("Finish the current gesture before changing playback speed.");return;}
+            togglePlaybackSpeed(root,pkg);return;
+        }
         AudioManager audio=getSystemService(AudioManager.class);
         double delta=c.optDouble("delta",0);if(!Double.isFinite(delta))return;delta=Math.max(-1,Math.min(1,delta));
         if(action.equals("scroll")){clear();swipe(root,c.optInt("direction",1),now);return;}
@@ -151,6 +156,46 @@ public final class ControlService extends AccessibilityService {
             }
             skipWithPauseAndResume(root,forward);
         }
+    }
+    private void togglePlaybackSpeed(AccessibilityNodeInfo root,String pkg){
+        if(!pkg.equals("com.google.android.youtube")&&!pkg.contains("chrome")){
+            tell("Playback speed menu control is currently supported in YouTube and Chrome players.");return;
+        }
+        if(!pkg.equals(speedPackage)){speedPackage=pkg;speed2x=false;}
+        final boolean want2x=!speed2x;
+        AccessibilityNodeInfo settings=find(root,n->label(n).matches("(settings|player settings|more options|more options menu)(, button)?"));
+        if(settings==null){
+            tapScreen(root,.5f,.5f,"Showing video controls for playback speed.");
+            new Handler(getMainLooper()).postDelayed(()->openSpeedMenu(want2x),250);
+            return;
+        }
+        openSpeedMenu(want2x);
+    }
+    private void openSpeedMenu(boolean want2x){
+        AccessibilityNodeInfo root=target();
+        if(root==null){tell("Video player is no longer active.");return;}
+        AccessibilityNodeInfo settings=find(root,n->label(n).matches("(settings|player settings|more options|more options menu)(, button)?"));
+        if(settings==null||!click(settings)){
+            tell("Could not open player settings. Show the video controls, then hover over the wire again.");return;
+        }
+        new Handler(getMainLooper()).postDelayed(()->{
+            AccessibilityNodeInfo menu=target();
+            if(menu==null)return;
+            AccessibilityNodeInfo speed=find(menu,n->label(n).matches(".*playback speed.*"));
+            if(speed==null||!click(speed)){
+                tell("Playback speed is not exposed in this player's settings.");return;
+            }
+            new Handler(getMainLooper()).postDelayed(()->{
+                AccessibilityNodeInfo options=target();
+                if(options==null)return;
+                AccessibilityNodeInfo choice=find(options,n->want2x
+                    ?label(n).matches("(2(\\.0)?x|2(\\.0)?×|2 times)(, button)?")
+                    :label(n).matches("(normal( \\(1x\\))?|1(\\.0)?x|1(\\.0)?×)(, button)?"));
+                if(choice!=null&&click(choice)){
+                    speed2x=want2x;tell(want2x?"Playback speed set to 2×. Hover again for normal speed.":"Playback speed set to normal (1×). Hover again for 2×.");
+                }else tell("Could not find the "+(want2x?"2×":"normal 1×")+" speed option in this player.");
+            },250);
+        },250);
     }
     private void seekScreenTimeline(AccessibilityNodeInfo root,double fraction){
         AudioManager audio=getSystemService(AudioManager.class);

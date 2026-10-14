@@ -78,7 +78,7 @@ public final class MainActivity extends Activity {
         text(content,"Look normally at the camera for a moment. Briefly close your own left eye and reopen for next / down; right eye for previous / up. Ordinary blinks are filtered. You do not need to hold for a second.",14,false);
         text(content,"Touch wire",20,true);
         wireGuide=text(content,"",14,false);
-        text(content,"Keep tap gaps under 0.3 seconds. Hold the final touch for 0.7 seconds; release to stop. You can swap any combination’s action in Change wire actions.",14,false);
+        text(content,"Keep tap gaps under 0.3 seconds. Hold the final touch for 0.7 seconds; release to stop. Hover near the wire until the sensor reading rises (without touching it) to toggle YouTube/Chrome playback between 2× and normal speed. Return your hand away from the wire before hovering again. You can swap tap/hold actions in Change wire actions.",14,false);
         text(content,"Hands",20,true);
         text(content,"Thumbs-up plays; thumbs-down pauses. Upright index finger sideways seeks, up/down changes volume. Two fingers sideways select the timeline; bend them to apply. Horizontal finger flicked 45° down scrolls down; fingers together swiped up scroll up.",14,false);
         text(content,"Start the camera here before opening another app. Keep the screen unlocked. Only enable hand tracking if needed to reduce load. Seeking, playback keys, and timeline access depend on the player; scrolling cannot override an app’s disabled navigation or advertisements. This is a test APK, not yet tested on your phone.",13,false);

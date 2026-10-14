@@ -63,8 +63,12 @@ public final class InputService extends LifecycleService {
         });
     }
     private void mapWire(String json){
-        try{if(bindings!=null)bindings.accept(new JSONObject(json));}
-        catch(org.json.JSONException e){AppState.wire="Invalid wire command ignored.";}
+        try{
+            JSONObject input=new JSONObject(json);
+            // Hover is a dedicated proximity gesture, independent of tap/hold mappings.
+            if("speedToggle".equals(input.optString("action"))){dispatch("wire",wireGeneration,json);return;}
+            if(bindings!=null)bindings.accept(input);
+        }catch(org.json.JSONException e){AppState.wire="Invalid wire command ignored.";}
     }
     private void receive(String text){
         buffer+=text;int end;long now=SystemClock.elapsedRealtime();
