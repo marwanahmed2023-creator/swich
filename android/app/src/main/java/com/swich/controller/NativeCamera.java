@@ -48,7 +48,7 @@ final class NativeCamera {
                 engine=new EngineCore(AppState.engines(service),command,hint);
                 face=FaceLandmarker.createFromOptions(service,FaceLandmarker.FaceLandmarkerOptions.builder()
                     .setBaseOptions(BaseOptions.builder().setModelAssetPath("generated/face_landmarker.task").build())
-                    .setRunningMode(RunningMode.VIDEO).setNumFaces(2).setOutputFaceBlendshapes(true)
+                    .setRunningMode(RunningMode.VIDEO).setNumFaces(1).setOutputFaceBlendshapes(true)
                     .setMinFaceDetectionConfidence(.65f).setMinFacePresenceConfidence(.65f).setMinTrackingConfidence(.65f).build());
                 if(handsEnabled)hands=HandLandmarker.createFromOptions(service,HandLandmarker.HandLandmarkerOptions.builder()
                     .setBaseOptions(BaseOptions.builder().setModelAssetPath("generated/hand_landmarker.task").build())
@@ -66,7 +66,7 @@ final class NativeCamera {
             if(closed)return;
             try{
                 provider=future.get();
-                analysis=new ImageAnalysis.Builder().setTargetResolution(new Size(640,480))
+                analysis=new ImageAnalysis.Builder().setTargetResolution(new Size(320,240))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build();
                 analysis.setAnalyzer(executor,this::analyze);
                 provider.bindToLifecycle((LifecycleOwner)service,CameraSelector.DEFAULT_FRONT_CAMERA,analysis);
@@ -84,7 +84,7 @@ final class NativeCamera {
         MPImage image=null;
         try{
             long now=SystemClock.elapsedRealtime();
-            if(closed||now-lastFrame<65)return;
+            if(closed||now-lastFrame<100)return;
             lastFrame=now;
             raw=proxy.toBitmap();Matrix rotation=new Matrix();rotation.postRotate(proxy.getImageInfo().getRotationDegrees());
             upright=Bitmap.createBitmap(raw,0,0,raw.getWidth(),raw.getHeight(),rotation,false);
@@ -97,7 +97,7 @@ final class NativeCamera {
                 blends.put(new JSONObject().put("categories",scores));
             }
             Object handData=JSONObject.NULL;
-            if(handsEnabled&&(handPresent||(!winkPending&&now-lastHand>=500))){
+            if(handsEnabled&&(handPresent?now-lastHand>=180:(!winkPending&&now-lastHand>=650))){
                 HandLandmarkerResult h=hands.detectForVideo(image,now);lastHand=now;handPresent=!h.landmarks().isEmpty();
                 JSONArray values=new JSONArray();
                 for(int i=0;i<h.landmarks().size();i++)values.put(new JSONObject().put("points",points(h.landmarks().get(i))).put("label",h.handedness().get(i).get(0).categoryName()));
