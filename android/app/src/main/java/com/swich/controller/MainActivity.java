@@ -36,8 +36,23 @@ public final class MainActivity extends Activity {
     static boolean isVisible(){return visible.get()!=null;}
     static void showPreview(Bitmap bitmap){
         MainActivity activity=visible.get();
-        if(activity==null){bitmap.recycle();return;}
-        activity.handler.post(()->{if(visible.get()==activity)activity.preview.setImageBitmap(bitmap);});
+        if(activity==null){if(!bitmap.isRecycled())bitmap.recycle();return;}
+        activity.handler.post(()->{
+            if(visible.get()!=activity||activity.preview==null){if(!bitmap.isRecycled())bitmap.recycle();return;}
+            Bitmap previous=null;
+            if(activity.preview.getDrawable() instanceof android.graphics.drawable.BitmapDrawable){
+                previous=((android.graphics.drawable.BitmapDrawable)activity.preview.getDrawable()).getBitmap();
+            }
+            activity.preview.setImageBitmap(bitmap);
+            if(previous!=null&&previous!=bitmap&&!previous.isRecycled())previous.recycle();
+        });
+    }
+    private void clearPreview(){
+        if(preview==null)return;
+        Bitmap previous=null;
+        if(preview.getDrawable() instanceof android.graphics.drawable.BitmapDrawable)previous=((android.graphics.drawable.BitmapDrawable)preview.getDrawable()).getBitmap();
+        preview.setImageDrawable(null);
+        if(previous!=null&&!previous.isRecycled())previous.recycle();
     }
     @Override public void onCreate(Bundle state){
         super.onCreate(state);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -58,11 +73,7 @@ public final class MainActivity extends Activity {
         wire=button(content,"Connect touch wire",()->{if(AppState.wireOn)send(InputService.STOP_WIRE);else requestInput(InputService.WIRE);});
         button(content,"Change wire actions",this::editBindings);
         status=text(content,"",14,false);status.setMinHeight(dp(100));
-        button(content,"Open YouTube app",()->openApp("com.google.android.youtube","https://www.youtube.com/"));
-        button(content,"Open YouTube in Chrome",this::openYouTubeInChrome);
-        button(content,"Open Facebook",()->openApp("com.facebook.katana","https://www.facebook.com/"));
-        button(content,"Open Instagram",()->openApp("com.instagram.android","https://www.instagram.com/"));
-        button(content,"STOP ALL CONTROLS",()->{send(InputService.STOP);preview.setImageDrawable(null);});
+        button(content,"STOP ALL CONTROLS",()->{send(InputService.STOP);clearPreview();});
         text(content,"Winks",20,true);
         text(content,"Look normally at the camera for a moment. Briefly close your own left eye and reopen for next / down; right eye for previous / up. Ordinary blinks are filtered. You do not need to hold for a second.",14,false);
         text(content,"Touch wire",20,true);
