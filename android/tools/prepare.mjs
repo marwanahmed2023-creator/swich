@@ -18,8 +18,8 @@ const compiled=await transformAsync(code,{presets:[[preset,{targets:{ie:'11'},lo
 await fs.writeFile(path.join(out,'engines.js'),compiled.code);
 const tests=path.join(root,'android/app/src/test/resources/generated');await fs.mkdir(tests,{recursive:true});
 const shim=`var console={log:function(){}};var module={exports:{}};
-var assert={equal:function(a,b,m){if(a!==b)throw new Error(m||('Expected '+a+' to equal '+b));},deepEqual:function(a,b,m){if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(m||('Values differ: '+JSON.stringify(a)+' / '+JSON.stringify(b)));},ok:function(v,m){if(!v)throw new Error(m||'Assertion failed');}};
-var require=function(name){if(name==='assert/strict')return assert;if(name.indexOf('wink-engine')>=0)return SwichWinks;if(name.indexOf('gesture-engine')>=0)return SwichGestures;throw new Error('Unexpected test import '+name);};`;
+var assertShim={equal:function(a,b,m){if(a!==b)throw new Error(m||('Expected '+a+' to equal '+b));},deepEqual:function(a,b,m){if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(m||('Values differ: '+JSON.stringify(a)+' / '+JSON.stringify(b)));},ok:function(v,m){if(!v)throw new Error(m||'Assertion failed');}};
+var require=function(name){if(name==='assert/strict')return assertShim;if(name.indexOf('wink-engine')>=0)return SwichWinks;if(name.indexOf('gesture-engine')>=0)return SwichGestures;throw new Error('Unexpected test import '+name);};`;
 for(const name of ['verify-winks','verify-scroll']){
  const testSource=shim+'\n'+await fs.readFile(path.join(root,'tests',name+'.cjs'),'utf8');
  const test=await transformAsync(testSource,{presets:[[preset,{targets:{ie:'11'},loose:true,modules:false}]],sourceType:'script'});
