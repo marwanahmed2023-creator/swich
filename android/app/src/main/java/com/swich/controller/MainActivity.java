@@ -39,7 +39,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state){
         super.onCreate(state);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
-        LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(22),dp(18),dp(22),dp(28));content.setBackgroundColor(Color.rgb(245,247,250));scroll.addView(content);setContentView(scroll);
+        LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(22),dp(18),dp(22),dp(28));content.setBackgroundColor(Color.rgb(12,18,42));scroll.addView(content);setContentView(scroll);
         // Target SDK 35 uses edge-to-edge. Respect status/navigation bars and cutouts.
         scroll.setOnApplyWindowInsetsListener((view,insets)->{view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
         text(content,"swich",34,true);text(content,"YouTube. Reels. Your controls.",21,true);
@@ -47,8 +47,8 @@ public final class MainActivity extends Activity {
         access=text(content,"",14,false);
         button(content,"Android accessibility setup",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(content,"One-time setup: Swich uses accessibility to read player button labels and perform your requested taps/swipes. It acts only in the supported apps while an input is running. Camera images and screen content are not saved or uploaded.",13,false);
-        preview=new ImageView(this);preview.setScaleType(ImageView.ScaleType.FIT_CENTER);preview.setScaleX(-1);preview.setBackgroundColor(Color.rgb(16,29,46));content.addView(preview,new LinearLayout.LayoutParams(-1,dp(180)));
-        hands=new CheckBox(this);hands.setText("Also track hand gestures");hands.setChecked(getPreferences(0).getBoolean("hands",true));content.addView(hands);
+        preview=new ImageView(this);preview.setScaleType(ImageView.ScaleType.FIT_CENTER);preview.setScaleX(-1);preview.setBackgroundColor(Color.rgb(18,24,56));content.addView(preview,new LinearLayout.LayoutParams(-1,dp(180)));
+        hands=new CheckBox(this);hands.setText("Also track hand gestures");hands.setChecked(getPreferences(0).getBoolean("hands",false));content.addView(hands);
         hands.setOnCheckedChangeListener((b,on)->getPreferences(0).edit().putBoolean("hands",on).apply());
         camera=button(content,"Start camera",()->{if(AppState.cameraOn)send(InputService.STOP_CAMERA);else requestInput(InputService.CAMERA);});
         button(content,"Set relaxed eyes again",()->{if(AppState.cameraOn)send(InputService.CALIBRATE);else toast("Start the camera first.");});
@@ -70,7 +70,7 @@ public final class MainActivity extends Activity {
         text(content,"Start the camera here before opening another app. Keep the screen unlocked. Only enable hand tracking if needed to reduce load. Seeking, playback keys, and timeline access depend on the player; scrolling cannot override an app’s disabled navigation or advertisements. This is a test APK, not yet tested on your phone.",13,false);
         render();
     }
-    private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(20,34,54));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,android.graphics.Typeface.BOLD);parent.addView(view);return view;}
+    private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(241,246,255));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,android.graphics.Typeface.BOLD);parent.addView(view);return view;}
     private Button button(LinearLayout parent,String label,Runnable click){Button button=new Button(this);button.setText(label);button.setAllCaps(false);parent.addView(button,new LinearLayout.LayoutParams(-1,-2));button.setOnClickListener(v->click.run());return button;}
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private void toast(String value){Toast.makeText(this,value,Toast.LENGTH_LONG).show();}
