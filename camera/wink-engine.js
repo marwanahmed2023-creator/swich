@@ -4,15 +4,16 @@
   const MIN_WINK=120,MAX_WINK=1500,OPEN_CONFIRM=60,MAX_GAP=350;
   const ready='Face ready · your left wink: down · your right wink: up';
   function describeFace(result){
-    if(result?.faceLandmarks?.length!==1||result.faceBlendshapes?.length!==1)return null;
-    const p=result.faceLandmarks[0],scores=result.faceBlendshapes[0].categories;
+    const compact=Array.isArray(result?.eyeLandmarks);
+    if((compact?result.eyeLandmarks.length!==1:result?.faceLandmarks?.length!==1)||result.faceBlendshapes?.length!==1)return null;
+    const p=compact?result.eyeLandmarks[0]:result.faceLandmarks[0],scores=result.faceBlendshapes[0].categories;
     if(!Array.isArray(scores))return null;
     // Model labels refer to the person's own eyes. Inference receives the
     // original camera image; only the on-page preview is mirrored.
     const left=scores.find(s=>s.categoryName==='eyeBlinkLeft')?.score;
     const right=scores.find(s=>s.categoryName==='eyeBlinkRight')?.score;
     if(![left,right].every(v=>Number.isFinite(v)&&v>=0&&v<=1))return null;
-    const eyes=[33,133,263,362].map(i=>p[i]);
+    const eyes=compact?p:[33,133,263,362].map(i=>p[i]);
     if(eyes.some(v=>!v||![v.x,v.y].every(Number.isFinite)||v.x<.02||v.x>.98||v.y<.02||v.y>.98))return null;
     const distance=(a,b)=>Math.hypot(a.x-b.x,(a.y-b.y)*.75);
     const width=distance(eyes[0],eyes[2]),a=distance(eyes[0],eyes[1]),b=distance(eyes[2],eyes[3]);
