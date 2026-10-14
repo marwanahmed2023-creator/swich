@@ -1,0 +1,82 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'camera/gesture-engine.js'
+      - 'camera/wink-engine.js'
+      - 'camera/wire-engine.js'
+      - '.github/workflows/android-apk.yml'
+permissions:
+  contents: read
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Keep the test signing key between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: swich-android-test-signing-v1
+      - name: Prepare models and shared gesture engines
+        run: |
+          npm install --prefix android/tools --ignore-scripts --no-audit --no-fund
+          node android/tools/prepare.mjs
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Check browser engine regressions
+        run: |
+          node tests/verify-winks.cjs
+          node tests/verify-scroll.cjs
+          node tests/verify-unified.cjs
+      - name: Test, lint, and build installable APK
+        run: gradle -p android testDebugUnitTest lintDebug assembleDebug --stacktrace
+      - name: Package download
+        run: |
+          mkdir -p android-download
+          cp android/app/build/outputs/apk/debug/app-debug.apk android-download/Swich.apk
+          cp android/INSTALL.md android-download/INSTALL.md
+          cp android/app/src/main/assets/generated/models.json android-download/models.json
+          cd android-download
+          sha256sum Swich.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Swich-Android-APK
+          path: android-download/
+          retention-days: 90
+      - name: Publish test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-test-${GITHUB_RUN_NUMBER}" \
+            android-download/Swich.apk android-download/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Swich Android test ${GITHUB_RUN_NUMBER}" \
+            --notes-file android/INSTALL.md
+      - name: Preserve test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-check-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
