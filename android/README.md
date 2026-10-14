@@ -24,10 +24,10 @@ SHA-256 hashes, and bundles them. The APK needs no network access to run.
 GitHub Actions → **Build Android APK** runs these checks and publishes `Swich.apk` as a
 prerelease and a workflow artifact. Read [INSTALL.md](INSTALL.md) for setup and limitations.
 
-Use **Open YouTube in Chrome** in the app to launch the mobile Shorts page in Chrome after starting the camera. Keep Swich's foreground notification active and the phone unlocked; Android may limit camera operation in the background. 
+Start the camera, then switch manually to YouTube, Facebook, or Instagram. The app no longer includes buttons for launching those sites. Keep Swich's foreground notification active and the phone unlocked; Android may limit camera operation in the background. 
 
 Main components: `InputService` owns the foreground lifetime; `BleInput` receives HM-10
-FFE1 notifications; `NativeCamera` analyzes front-camera images; `ControlService` gates
+FFE1 notifications; `NativeCamera` analyzes front-camera images and sends only the four eye landmarks needed for wink detection (rather than serializing the full face mesh); preview bitmaps are recycled when replaced to reduce memory pressure. `ControlService` gates
 commands to supported foreground packages, uses accessibility buttons/ranges/swipes and
 Android media keys, and adjusts the media volume stream. `EngineCore` runs bundled engines.
 
@@ -43,6 +43,10 @@ seek back/forward, scroll down/up, volume up/down, open Swich, or do nothing. As
 save on the phone. **Restore defaults** restores the original mapping.
 
 A tap assigned to volume changes one step. Holds assigned to volume or scrolling continue
-until release; other actions assigned to a hold happen once. Remapping does not change tap
-or hold recognition timing. An already-held gesture retains its original assignment until
-release, so changing a setting cannot switch its action halfway through.
+until release; other actions assigned to a hold happen once. On YouTube/Chrome, seek shortcuts
+try the player’s pause → edge double-tap → resume sequence, which is intended to support Shorts
+where the normal timeline is hidden. The two-finger timeline fallback pauses, taps an estimated
+position near the bottom of the active app window, then resumes if controls are accessible; it
+is an approximation, not a measured Facebook layout, and still needs testing on the target phone.
+Remapping does not change tap or hold recognition timing. An already-held gesture retains its
+original assignment until release, so changing a setting cannot switch its action halfway through.
