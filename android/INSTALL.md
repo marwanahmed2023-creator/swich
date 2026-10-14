@@ -15,7 +15,7 @@ This is a signed debug/test APK built from the public source in this repository,
 3. For winks/hands, tap **Start camera** and grant camera access while Swich is visible.
    Look normally at the camera for a moment. Use **Set relaxed eyes again** if needed.
    Disable hand tracking before starting if you only need winks and want less processing.
-4. Open the YouTube, Facebook, or Instagram **app**, then navigate to the video or feed.
+4. Return to Swich and use **Open YouTube in Chrome** to open YouTube Shorts in Chrome, or open the YouTube, Facebook, or Instagram app. Navigate to the video or feed. Chrome controls work while Chrome is the active foreground app.
    Left wink: next/down. Right wink: previous/up. Both-eye blinks are filtered.
    The foreground notification keeps controls visible. Keep your phone unlocked.
 5. Stop from **STOP ALL CONTROLS** in Swich or **Stop all** in its notification.
