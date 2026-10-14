@@ -70,7 +70,7 @@ public final class MainActivity extends Activity {
         text(content,"Start the camera here before opening another app. Keep the screen unlocked. Only enable hand tracking if needed to reduce load. Seeking, playback keys, and timeline access depend on the player; scrolling cannot override an app’s disabled navigation or advertisements. This is a test APK, not yet tested on your phone.",13,false);
         render();
     }
-    private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(20,34,54));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,1);parent.addView(view);return view;}
+    private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(20,34,54));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,android.graphics.Typeface.BOLD);parent.addView(view);return view;}
     private Button button(LinearLayout parent,String label,Runnable click){Button button=new Button(this);button.setText(label);button.setAllCaps(false);parent.addView(button,new LinearLayout.LayoutParams(-1,-2));button.setOnClickListener(v->click.run());return button;}
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private void toast(String value){Toast.makeText(this,value,Toast.LENGTH_LONG).show();}
