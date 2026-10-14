@@ -31,7 +31,7 @@ public final class MainActivity extends Activity {
     private AlertDialog scanDialog;
     private String pending="";
     private int buttonIndex=0;
-    private static final int[] BUTTON_COLORS={Color.rgb(0,190,255),Color.rgb(130,85,255),Color.rgb(255,87,128),Color.rgb(0,190,145),Color.rgb(255,154,45)};
+    private static final int[] BUTTON_COLORS={Color.rgb(31,43,55),Color.rgb(31,43,55),Color.rgb(31,43,55)};
     private final Runnable refresh=new Runnable(){public void run(){render();handler.postDelayed(this,500);}};
     static boolean isVisible(){return visible.get()!=null;}
     static void showPreview(Bitmap bitmap){
@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state){
         super.onCreate(state);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
-        LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(22),dp(18),dp(22),dp(28));content.setBackgroundColor(Color.rgb(12,18,42));scroll.addView(content);setContentView(scroll);
+        LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(22),dp(18),dp(22),dp(28));content.setBackgroundColor(Color.rgb(13,17,23));scroll.addView(content);setContentView(scroll);
         // Target SDK 35 uses edge-to-edge. Respect status/navigation bars and cutouts.
         scroll.setOnApplyWindowInsetsListener((view,insets)->{view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
         text(content,"swich",34,true);text(content,"YouTube. Reels. Your controls.",21,true);
@@ -50,7 +50,7 @@ public final class MainActivity extends Activity {
         access=text(content,"",14,false);
         button(content,"Android accessibility setup",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(content,"One-time setup: Swich uses accessibility to read player button labels and perform your requested taps/swipes. It acts only in the supported apps while an input is running. Camera images and screen content are not saved or uploaded.",13,false);
-        preview=new ImageView(this);preview.setScaleType(ImageView.ScaleType.FIT_CENTER);preview.setScaleX(-1);preview.setBackgroundColor(Color.rgb(18,24,56));content.addView(preview,new LinearLayout.LayoutParams(-1,dp(180)));
+        preview=new ImageView(this);preview.setScaleType(ImageView.ScaleType.FIT_CENTER);preview.setScaleX(-1);preview.setBackgroundColor(Color.rgb(22,29,36));content.addView(preview,new LinearLayout.LayoutParams(-1,dp(180)));
         hands=new CheckBox(this);hands.setText("Also track hand gestures");hands.setChecked(getPreferences(0).getBoolean("hands",false));content.addView(hands);
         hands.setOnCheckedChangeListener((b,on)->getPreferences(0).edit().putBoolean("hands",on).apply());
         camera=button(content,"Start camera",()->{if(AppState.cameraOn)send(InputService.STOP_CAMERA);else requestInput(InputService.CAMERA);});
@@ -73,8 +73,8 @@ public final class MainActivity extends Activity {
         text(content,"Start the camera here before opening another app. Keep the screen unlocked. Only enable hand tracking if needed to reduce load. Seeking, playback keys, and timeline access depend on the player; scrolling cannot override an app’s disabled navigation or advertisements. This is a test APK, not yet tested on your phone.",13,false);
         render();
     }
-    private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(241,246,255));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,android.graphics.Typeface.BOLD);parent.addView(view);return view;}
-    private Button button(LinearLayout parent,String label,Runnable click){Button button=new Button(this);button.setText(label);button.setAllCaps(false);GradientDrawable bg=new GradientDrawable();bg.setColor(BUTTON_COLORS[buttonIndex++%BUTTON_COLORS.length]);bg.setCornerRadius(dp(16));button.setBackground(bg);button.setTextColor(Color.WHITE);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(4),0,dp(5));parent.addView(button,lp);button.setOnClickListener(v->click.run());return button;}
+    private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(231,237,242));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,android.graphics.Typeface.BOLD);parent.addView(view);return view;}
+    private Button button(LinearLayout parent,String label,Runnable click){Button button=new Button(this);button.setText(label);button.setAllCaps(false);GradientDrawable bg=new GradientDrawable();bg.setColor(BUTTON_COLORS[buttonIndex++%BUTTON_COLORS.length]);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(62,151,143));button.setBackground(bg);button.setTextColor(Color.rgb(226,245,241));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(4),0,dp(5));parent.addView(button,lp);button.setOnClickListener(v->click.run());return button;}
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private void toast(String value){Toast.makeText(this,value,Toast.LENGTH_LONG).show();}
     private void render(){if(status==null)return;if(wireGuide!=null)wireGuide.setText(wireSummary());access.setText(ControlService.instance==null?"Accessibility: not connected":"Accessibility: ready");camera.setText(AppState.cameraOn?"Stop camera":"Start camera");wire.setText(AppState.wireOn?"Disconnect wire":"Connect touch wire");hands.setEnabled(!AppState.cameraOn);status.setText("Camera "+(AppState.cameraOn?"on":"off")+": "+AppState.camera+"\n\nWire "+(AppState.wireOn?"on":"off")+": "+AppState.wire+"\n\n"+AppState.action);}
