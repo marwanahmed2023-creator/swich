@@ -6,6 +6,7 @@ import android.app.*;
 import android.bluetooth.*;
 import android.bluetooth.le.*;
 import android.content.*;
+import android.graphics.drawable.GradientDrawable;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -29,6 +30,8 @@ public final class MainActivity extends Activity {
     private ScanCallback scanCallback;
     private AlertDialog scanDialog;
     private String pending="";
+    private int buttonIndex=0;
+    private static final int[] BUTTON_COLORS={Color.rgb(0,190,255),Color.rgb(130,85,255),Color.rgb(255,87,128),Color.rgb(0,190,145),Color.rgb(255,154,45)};
     private final Runnable refresh=new Runnable(){public void run(){render();handler.postDelayed(this,500);}};
     static boolean isVisible(){return visible.get()!=null;}
     static void showPreview(Bitmap bitmap){
@@ -71,7 +74,7 @@ public final class MainActivity extends Activity {
         render();
     }
     private TextView text(LinearLayout parent,String value,int size,boolean bold){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(Color.rgb(241,246,255));view.setPadding(0,dp(9),0,dp(9));if(bold)view.setTypeface(null,android.graphics.Typeface.BOLD);parent.addView(view);return view;}
-    private Button button(LinearLayout parent,String label,Runnable click){Button button=new Button(this);button.setText(label);button.setAllCaps(false);parent.addView(button,new LinearLayout.LayoutParams(-1,-2));button.setOnClickListener(v->click.run());return button;}
+    private Button button(LinearLayout parent,String label,Runnable click){Button button=new Button(this);button.setText(label);button.setAllCaps(false);GradientDrawable bg=new GradientDrawable();bg.setColor(BUTTON_COLORS[buttonIndex++%BUTTON_COLORS.length]);bg.setCornerRadius(dp(16));button.setBackground(bg);button.setTextColor(Color.WHITE);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(4),0,dp(5));parent.addView(button,lp);button.setOnClickListener(v->click.run());return button;}
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private void toast(String value){Toast.makeText(this,value,Toast.LENGTH_LONG).show();}
     private void render(){if(status==null)return;if(wireGuide!=null)wireGuide.setText(wireSummary());access.setText(ControlService.instance==null?"Accessibility: not connected":"Accessibility: ready");camera.setText(AppState.cameraOn?"Stop camera":"Start camera");wire.setText(AppState.wireOn?"Disconnect wire":"Connect touch wire");hands.setEnabled(!AppState.cameraOn);status.setText("Camera "+(AppState.cameraOn?"on":"off")+": "+AppState.camera+"\n\nWire "+(AppState.wireOn?"on":"off")+": "+AppState.wire+"\n\n"+AppState.action);}
