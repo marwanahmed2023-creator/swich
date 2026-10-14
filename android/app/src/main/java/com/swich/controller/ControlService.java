@@ -79,9 +79,7 @@ public final class ControlService extends AccessibilityService {
                 if(kind.equals("seek")&&c.optBoolean("commit")){
                     AccessibilityNodeInfo seek=seekBar(root);
                     if("__screen_timeline__".equals(seekId)){
-                        Rect bounds=new Rect();root.getBoundsInScreen(bounds);
-                        float x=bounds.left+(float)Math.max(0,Math.min(1,seekTarget))*bounds.width();
-                        tapAt(x,bounds.top+bounds.height()*.88f,"Tapped the approximate timeline position.");
+                        seekScreenTimeline(root,seekTarget);
                     }else if(seek!=null&&(seekId.isEmpty()||seekId.equals(seek.getViewIdResourceName()))){Bundle b=new Bundle();b.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE,(float)seekTarget);tell(seek.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(),b)?"Timeline set":"This player did not accept timeline control.");}
                 }
                 clear();return;
@@ -130,6 +128,10 @@ public final class ControlService extends AccessibilityService {
             boolean forward=c.optInt("seconds",10)>0;
             AccessibilityNodeInfo button=find(root,n->label(n).matches(forward?"(fast forward|forward|skip forward)( 10 seconds)?":"(rewind|back|skip back)( 10 seconds)?"));
             if(button!=null&&click(button)){tell(forward?"Skip forward":"Skip back");return;}
+            if(pkg.equals("com.google.android.youtube")||pkg.contains("chrome")){
+                skipWithPauseAndResume(root,forward);
+                return;
+            }
             AccessibilityNodeInfo seek=seekBar(root);
             if(seek!=null&&seek.getRangeInfo()!=null){
                 android.view.accessibility.AccessibilityNodeInfo.RangeInfo range=seek.getRangeInfo();
@@ -149,6 +151,30 @@ public final class ControlService extends AccessibilityService {
             }
             skipWithPauseAndResume(root,forward);
         }
+    }
+    private void seekScreenTimeline(AccessibilityNodeInfo root,double fraction){
+        AudioManager audio=getSystemService(AudioManager.class);
+        AccessibilityNodeInfo pause=playerButton(root,"pause");
+        if(pause!=null&&click(pause))tell("Paused to reveal the timeline.");
+        else if(playerButton(root,"play")==null)mediaKey(audio,KeyEvent.KEYCODE_MEDIA_PAUSE);
+        new Handler(getMainLooper()).postDelayed(()->{
+            AccessibilityNodeInfo fresh=target();
+            if(fresh==null)return;
+            Rect bounds=new Rect();fresh.getBoundsInScreen(bounds);
+            if(bounds.width()<100||bounds.height()<200){tell("Could not locate the timeline area.");return;}
+            float x=bounds.left+(float)Math.max(0,Math.min(1,fraction))*bounds.width();
+            // Facebook/Shorts controls normally sit close to the bottom edge.
+            // This is an approximate screen tap when the app exposes no seek-bar node.
+            float y=bounds.top+bounds.height()*.93f;
+            tapAt(x,y,"Tapped the approximate timeline position.");
+            new Handler(getMainLooper()).postDelayed(()->{
+                AccessibilityNodeInfo after=target();
+                if(after==null)return;
+                AccessibilityNodeInfo play=playerButton(after,"play");
+                if(play!=null&&click(play))tell("Timeline moved and playback resumed.");
+                else mediaKey(getSystemService(AudioManager.class),KeyEvent.KEYCODE_MEDIA_PLAY);
+            },280);
+        },220);
     }
     private void skipWithPauseAndResume(AccessibilityNodeInfo root,boolean forward){
         Rect bounds=new Rect();root.getBoundsInScreen(bounds);
