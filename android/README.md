@@ -24,7 +24,9 @@ SHA-256 hashes, and bundles them. The APK needs no network access to run.
 GitHub Actions → **Build Android APK** runs these checks and publishes `Swich.apk` as a
 prerelease and a workflow artifact. Read [INSTALL.md](INSTALL.md) for setup and limitations.
 
-Use **Open YouTube in Chrome** in the app to launch the mobile Shorts page in Chrome after starting the camera. Keep Swich's foreground notification active and the phone unlocked; Android may limit camera operation in the background.\n\nMain components: `InputService` owns the foreground lifetime; `BleInput` receives HM-10
+Use **Open YouTube in Chrome** in the app to launch the mobile Shorts page in Chrome after starting the camera. Keep Swich's foreground notification active and the phone unlocked; Android may limit camera operation in the background. 
+
+Main components: `InputService` owns the foreground lifetime; `BleInput` receives HM-10
 FFE1 notifications; `NativeCamera` analyzes front-camera images; `ControlService` gates
 commands to supported foreground packages, uses accessibility buttons/ranges/swipes and
 Android media keys, and adjusts the media volume stream. `EngineCore` runs bundled engines.
