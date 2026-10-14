@@ -101,6 +101,15 @@ public final class ControlService extends AccessibilityService {
             }
             int key=action.equals("play")?KeyEvent.KEYCODE_MEDIA_PLAY:KeyEvent.KEYCODE_MEDIA_PAUSE;
             mediaKey(audio,key);tell("Playback key sent. If the player ignores it, try the play button on screen.");
+        }else if(action.equals("like")||action.equals("dislike")){
+            boolean like=action.equals("like");
+            AccessibilityNodeInfo button=find(root,n->{
+                String s=label(n);
+                if(like)return s.matches("(like|like video|like this video|remove like|liked)(, button)?");
+                return s.matches("(dislike|dislike video|dislike this video|remove dislike|disliked)(, button)?");
+            });
+            if(button!=null&&click(button)){tell(like?"Like button activated":"Dislike button activated");return;}
+            tell("No accessible "+(like?"Like":"Dislike")+" button in this player. Open the video controls and try again.");
         }else if(action.equals("seek")){
             boolean forward=c.optInt("seconds",10)>0;
             AccessibilityNodeInfo button=find(root,n->label(n).matches(forward?"(fast forward|forward|skip forward)( 10 seconds)?":"(rewind|back|skip back)( 10 seconds)?"));
@@ -114,23 +123,31 @@ public final class ControlService extends AccessibilityService {
                 if(seek.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId(),args)){
                     tell(forward?"Skipped forward on timeline":"Skipped back on timeline");return;
                 }
+                // Some Chrome/YouTube timelines expose bounds but reject SET_PROGRESS.
+                Rect bounds=new Rect();seek.getBoundsInScreen(bounds);
+                if(bounds.width()>80&&bounds.height()>0&&max>min){
+                    float fraction=(Math.max(min,Math.min(max,current+(forward?step:-step)))-min)/(max-min);
+                    tapAt(bounds.left+bounds.width()*fraction,bounds.centerY(),forward?"Seeked forward on timeline":"Seeked back on timeline");
+                    return;
+                }
             }
-            mediaKey(audio,forward?KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:KeyEvent.KEYCODE_MEDIA_REWIND);
-            tell("This player does not expose a working skip control here. Shorts may not support 10-second seeking.");
+            tell("This player has no usable seek timeline. Shorts may not support seeking within a clip.");
         }
     }
     private void tapScreen(AccessibilityNodeInfo root,float xFraction,float yFraction,String message){
         Rect r=new Rect();root.getBoundsInScreen(r);
         if(r.width()<100||r.height()<200){tell("Could not find the video area to tap.");return;}
-        float x=r.left+r.width()*xFraction,y=r.top+r.height()*yFraction;
+        tapAt(r.left+r.width()*xFraction,r.top+r.height()*yFraction,message);
+    }
+    private void tapAt(float x,float y,String message){
         Path path=new Path();path.moveTo(x,y);
         boolean accepted=dispatchGesture(new GestureDescription.Builder()
             .addStroke(new GestureDescription.StrokeDescription(path,0,60)).build(),
             new GestureResultCallback(){
                 @Override public void onCompleted(GestureDescription gesture){tell(message);}
-                @Override public void onCancelled(GestureDescription gesture){tell("The video did not accept the tap.");}
+                @Override public void onCancelled(GestureDescription gesture){tell("The player did not accept the tap.");}
             },null);
-        if(!accepted)tell("The video did not accept the tap.");
+        if(!accepted)tell("The player did not accept the tap.");
     }
     private void swipe(AccessibilityNodeInfo root,int direction,long now){
         if(swiping||now-lastScroll<600)return;
