@@ -131,7 +131,10 @@ public final class ControlService extends AccessibilityService {
                     return;
                 }
             }
-            tell("This player has no usable seek timeline. Shorts may not support seeking within a clip.");
+            // A Shorts player often has no timeline at all. Use the existing vertical
+            // navigation gesture as a useful fallback instead of silently doing nothing.
+            swipe(root,forward?1:-1,now);
+            tell("No seek timeline here — tried "+(forward?"next":"previous")+" video navigation.");
         }
     }
     private void tapScreen(AccessibilityNodeInfo root,float xFraction,float yFraction,String message){
