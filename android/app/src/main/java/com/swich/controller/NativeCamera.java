@@ -84,7 +84,7 @@ final class NativeCamera {
         MPImage image=null;
         try{
             long now=SystemClock.elapsedRealtime();
-            if(closed||now-lastFrame<25)return;
+            if(closed||now-lastFrame<16)return;
             lastFrame=now;
             raw=proxy.toBitmap();Matrix rotation=new Matrix();rotation.postRotate(proxy.getImageInfo().getRotationDegrees());
             upright=Bitmap.createBitmap(raw,0,0,raw.getWidth(),raw.getHeight(),rotation,false);
