@@ -22,7 +22,7 @@ import org.json.JSONObject;
 
 public final class ControlService extends AccessibilityService {
     static volatile ControlService instance;
-    private static final Set<String> APPS=new HashSet<>(Arrays.asList("com.google.android.youtube","com.facebook.katana","com.facebook.lite","com.instagram.android"));
+    private static final Set<String> APPS=new HashSet<>(Arrays.asList("com.google.android.youtube","com.android.chrome","com.chrome.beta","com.chrome.dev","com.facebook.katana","com.facebook.lite","com.instagram.android"));
     private String owner="",gesture="",kind="",targetPackage="",seekId="";
     private double base,seekTarget;
     private long deadline,lastScroll;
